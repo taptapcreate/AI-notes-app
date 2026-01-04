@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "AI Assistant",
+    "slug": "ai-assistant-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F172A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "This app needs microphone access to record voice notes",
+        "NSCameraUsageDescription": "This app needs camera access to capture images for note extraction",
+        "NSPhotoLibraryUsageDescription": "This app needs photo library access to select images"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F172A"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow AI Assistant to access your microphone for voice notes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow AI Assistant to access your photos for note extraction.",
+          "cameraPermission": "Allow AI Assistant to use your camera for capturing images."
+        }
+      ]
+    ]
+  }
+}
