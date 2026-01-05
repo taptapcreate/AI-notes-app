@@ -22,11 +22,15 @@ export const generateNotes = async (type, content, options = {}) => {
                 type,
                 content,
                 noteLength: options.noteLength || 'standard',
+                format: options.format || 'bullet',
+                tone: options.tone || 'professional',
+                language: options.language || 'English',
             }),
         });
 
         if (!response.ok) {
-            throw new Error('Failed to generate notes');
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.details || errorData.error || 'Failed to generate notes');
         }
 
         const data = await response.json();

@@ -23,7 +23,17 @@ const getGreeting = () => {
     return { text: 'Good Night', icon: 'moon' };
 };
 
-// ... (formatDate and imports remain same)
+const formatDate = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: true
+    });
+};
 
 export default function HomeScreen({ navigation }) {
     const { colors } = useTheme();
@@ -38,9 +48,13 @@ export default function HomeScreen({ navigation }) {
 
     // Markdown styles
     const markdownStyles = {
-        body: { color: colors.text, fontSize: 13, lineHeight: 18 },
-        paragraph: { marginBottom: 0 },
+        body: { color: colors.text, fontSize: 13, lineHeight: 20 },
+        paragraph: { marginBottom: 4 },
         strong: { color: colors.primary, fontWeight: '600' },
+        heading1: { color: colors.text, fontSize: 14, fontWeight: '700', marginBottom: 4, marginTop: 0 },
+        heading2: { color: colors.text, fontSize: 14, fontWeight: '700', marginBottom: 4, marginTop: 0 },
+        heading3: { color: colors.text, fontSize: 13, fontWeight: '700', marginBottom: 4, marginTop: 0 },
+        bullet_list: { marginBottom: 0 },
     };
 
     const QuickAction = ({ icon, label, gradient, onPress }) => (

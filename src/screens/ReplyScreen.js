@@ -161,71 +161,66 @@ export default function ReplyScreen() {
                 {/* Tone */}
                 <View style={styles.section}>
                     <Text style={styles.label}>Tone</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-                        <View style={styles.toneRow}>
-                            {TONES.map((tone) => (
-                                <TouchableOpacity
-                                    key={tone.id}
-                                    style={[styles.toneBtn, selectedTone === tone.id && styles.toneBtnActive]}
-                                    onPress={() => setSelectedTone(tone.id)}
-                                >
-                                    <Ionicons
-                                        name={tone.icon}
-                                        size={18}
-                                        color={selectedTone === tone.id ? colors.primary : colors.textSecondary}
-                                    />
-                                    <Text style={[styles.toneText, selectedTone === tone.id && styles.toneTextActive]}>
-                                        {tone.label}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    </ScrollView>
+                    <View style={styles.toneRow}>
+                        {TONES.map((tone) => (
+                            <TouchableOpacity
+                                key={tone.id}
+                                style={[styles.toneBtn, selectedTone === tone.id && styles.toneBtnActive]}
+                                onPress={() => setSelectedTone(tone.id)}
+                            >
+                                <Ionicons
+                                    name={tone.icon}
+                                    size={18}
+                                    color={selectedTone === tone.id ? colors.primary : colors.textSecondary}
+                                />
+                                <Text style={[styles.toneText, selectedTone === tone.id && styles.toneTextActive]}>
+                                    {tone.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
                 </View>
 
                 {/* Style */}
                 <View style={styles.section}>
                     <Text style={styles.label}>Style</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-                        <View style={styles.chipRow}>
-                            {STYLES.map((style) => (
-                                <TouchableOpacity
-                                    key={style.id}
-                                    style={[styles.chip, selectedStyle === style.id && styles.chipActive]}
-                                    onPress={() => setSelectedStyle(style.id)}
-                                >
-                                    <Text style={[styles.chipText, selectedStyle === style.id && styles.chipTextActive]}>
-                                        {style.label}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    </ScrollView>
+                    <View style={styles.chipRow}>
+                        {STYLES.map((style) => (
+                            <TouchableOpacity
+                                key={style.id}
+                                style={[styles.chip, selectedStyle === style.id && styles.chipActive]}
+                                onPress={() => setSelectedStyle(style.id)}
+                            >
+                                <Text style={[styles.chipText, selectedStyle === style.id && styles.chipTextActive]}>
+                                    {style.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
                 </View>
 
                 {/* Format */}
                 <View style={styles.section}>
                     <Text style={styles.label}>Format</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-                        <View style={styles.formatRow}>
-                            {FORMATS.map((format) => (
-                                <TouchableOpacity
-                                    key={format.id}
-                                    style={[styles.formatBtn, selectedFormat === format.id && styles.formatBtnActive]}
-                                    onPress={() => setSelectedFormat(format.id)}
-                                >
-                                    <Ionicons
-                                        name={format.icon}
-                                        size={20}
-                                        color={selectedFormat === format.id ? colors.primary : colors.textMuted}
-                                    />
-                                    <Text style={[styles.formatText, selectedFormat === format.id && styles.formatTextActive]}>
-                                        {format.label}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    </ScrollView>
+                    <View style={styles.formatRow}>
+                        {FORMATS.map((format) => (
+                            <TouchableOpacity
+                                key={format.id}
+                                style={[styles.formatBtn, selectedFormat === format.id && styles.formatBtnActive]}
+                                onPress={() => setSelectedFormat(format.id)}
+                            >
+                                <Ionicons
+                                    name={format.icon}
+                                    size={20}
+                                    color={selectedFormat === format.id ? colors.primary : colors.textMuted}
+                                />
+                                <Text style={[styles.formatText, selectedFormat === format.id && styles.formatTextActive]}>
+                                    {format.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
                 </View>
 
                 {/* Generate Button */}
@@ -333,8 +328,8 @@ const createStyles = (colors) => StyleSheet.create({
     },
     toneRow: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         gap: 10,
-        paddingRight: 16,
     },
     toneBtn: {
         backgroundColor: colors.surface,
@@ -365,8 +360,8 @@ const createStyles = (colors) => StyleSheet.create({
     },
     chipRow: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         gap: 8,
-        paddingRight: 16,
     },
     chip: {
         backgroundColor: colors.surface,
@@ -387,8 +382,8 @@ const createStyles = (colors) => StyleSheet.create({
     },
     formatRow: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         gap: 10,
-        paddingRight: 16,
     },
     formatBtn: {
         backgroundColor: colors.surface,

@@ -31,6 +31,8 @@ const INPUT_TYPES = [
     { id: 'image', icon: 'image', label: 'Image' },
     { id: 'voice', icon: 'mic', label: 'Voice' },
     { id: 'pdf', icon: 'document', label: 'PDF' },
+    { id: 'website', icon: 'globe-outline', label: 'Web' },
+    { id: 'youtube', icon: 'logo-youtube', label: 'YouTube' },
 ];
 
 const NOTE_LENGTHS = [
@@ -39,11 +41,38 @@ const NOTE_LENGTHS = [
     { id: 'detailed', label: 'Detailed', icon: 'list' },
 ];
 
+const FORMATS = [
+    { id: 'bullet', label: 'Bullet Points', icon: 'list-outline' },
+    { id: 'meeting', label: 'Meeting Minutes', icon: 'people-outline' },
+    { id: 'study', label: 'Study Guide', icon: 'school-outline' },
+    { id: 'todo', label: 'To-Do List', icon: 'checkbox-outline' },
+    { id: 'summary', label: 'Summary', icon: 'document-text-outline' },
+    { id: 'blog', label: 'Blog Post', icon: 'newspaper-outline' },
+];
+
+const TONES = [
+    { id: 'professional', label: 'Professional', icon: 'briefcase-outline' },
+    { id: 'academic', label: 'Academic', icon: 'library-outline' },
+    { id: 'casual', label: 'Casual', icon: 'cafe-outline' },
+    { id: 'creative', label: 'Creative', icon: 'color-palette-outline' },
+];
+
+const LANGUAGES = [
+    { id: 'English', label: 'English' },
+    { id: 'Spanish', label: 'Spanish' },
+    { id: 'French', label: 'French' },
+    { id: 'German', label: 'German' },
+    { id: 'Italian', label: 'Italian' },
+    { id: 'Hindi', label: 'Hindi' },
+    { id: 'Japanese', label: 'Japanese' },
+];
+
 export default function NotesScreen() {
     const { colors } = useTheme();
     const { addNote } = useHistory();
     const [inputType, setInputType] = useState('text');
     const [textInput, setTextInput] = useState('');
+    const [linkInput, setLinkInput] = useState('');
     const [selectedImage, setSelectedImage] = useState(null);
     const [recording, setRecording] = useState(null);
     const [isRecording, setIsRecording] = useState(false);
@@ -51,7 +80,11 @@ export default function NotesScreen() {
     const [selectedPdf, setSelectedPdf] = useState(null);
     const [generatedNotes, setGeneratedNotes] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+
     const [noteLength, setNoteLength] = useState('standard');
+    const [format, setFormat] = useState('bullet');
+    const [tone, setTone] = useState('professional');
+    const [language, setLanguage] = useState('English');
     const [lastContent, setLastContent] = useState(null);
 
     const pickImage = async () => {
@@ -170,19 +203,42 @@ export default function NotesScreen() {
                     }
                     content = selectedPdf.name;
                     break;
+                case 'website':
+                case 'youtube':
+                    if (!linkInput.trim()) {
+                        Alert.alert('Error', 'Please enter a valid URL');
+                        setIsLoading(false);
+                        return;
+                    }
+                    content = linkInput;
+                    break;
             }
 
             // Save content for regeneration
             setLastContent({ type: inputType, content });
 
-            const result = await generateNotes(inputType, content, { noteLength });
+            console.log(`[DEBUG] Generating notes for Type: ${inputType}, Content: ${content}`);
+            const result = await generateNotes(inputType, content, { noteLength, format, tone, language });
             setGeneratedNotes(result);
 
             // Save to history
             addNote(result);
         } catch (error) {
             console.error('Error generating notes:', error);
-            Alert.alert('Error', 'Failed to generate notes. Please check your connection.');
+
+            if (error.message.includes('YOUTUBE_BLOCK')) {
+                Alert.alert(
+                    'YouTube Access Blocked',
+                    'YouTube is blocking automated transcript fetching on this network.\n\nPlease:\n1. Open the video\n2. Copy the transcript manually\n3. Switch to "Text" mode here and paste it.'
+                );
+            } else if (error.message.includes('WEB_ACCESS_BLOCKED')) {
+                Alert.alert(
+                    'Website Access Blocked',
+                    'This website has strict bot protection that prevents automated reading.\n\nPlease:\n1. Copy the article text manually\n2. Switch to "Text" mode here and paste it.'
+                );
+            } else {
+                Alert.alert('Error', error.message || 'Failed to generate notes. Please check your connection.');
+            }
         } finally {
             setIsLoading(false);
         }
@@ -196,12 +252,12 @@ export default function NotesScreen() {
 
         setIsLoading(true);
         try {
-            const result = await generateNotes(lastContent.type, lastContent.content, { noteLength });
+            const result = await generateNotes(lastContent.type, lastContent.content, { noteLength, format, tone, language });
             setGeneratedNotes(result);
             addNote(result);
         } catch (error) {
             console.error('Error regenerating notes:', error);
-            Alert.alert('Error', 'Failed to regenerate notes.');
+            Alert.alert('Error', error.message || 'Failed to regenerate notes.');
         } finally {
             setIsLoading(false);
         }
@@ -227,6 +283,7 @@ export default function NotesScreen() {
 
     const clearInput = () => {
         setTextInput('');
+        setLinkInput('');
         setSelectedImage(null);
         setAudioUri(null);
         setSelectedPdf(null);
@@ -328,8 +385,46 @@ export default function NotesScreen() {
                         )}
                     </View>
                 );
+            case 'website':
+            case 'youtube':
+                return (
+                    <View style={styles.inputCard}>
+                        <View style={styles.linkContainer}>
+                            <LinearGradient
+                                colors={inputType === 'youtube' ? ['#FF0000', '#CC0000'] : colors.gradientPrimary}
+                                style={styles.linkIcon}
+                            >
+                                <Ionicons
+                                    name={inputType === 'youtube' ? 'logo-youtube' : 'globe-outline'}
+                                    size={24}
+                                    color="#fff"
+                                />
+                            </LinearGradient>
+                            <TextInput
+                                style={styles.linkInput}
+                                placeholder={inputType === 'youtube' ? "Paste YouTube video URL..." : "Paste article URL..."}
+                                placeholderTextColor={colors.textMuted}
+                                value={linkInput}
+                                onChangeText={setLinkInput}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                            />
+                            {linkInput.length > 0 && (
+                                <TouchableOpacity onPress={() => setLinkInput('')}>
+                                    <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                        <Text style={styles.linkHint}>
+                            {inputType === 'youtube'
+                                ? "We'll watch the video and summarize it for you!"
+                                : "We'll read the website and create organized notes."}
+                        </Text>
+                    </View>
+                );
         }
     };
+
 
     // Markdown styles for the output
     const markdownStyles = {
@@ -491,6 +586,71 @@ export default function NotesScreen() {
                     </View>
                 </View>
 
+
+                {/* Format Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Format</Text>
+                    <View style={styles.wrapRow}>
+                        {FORMATS.map((item) => (
+                            <TouchableOpacity
+                                key={item.id}
+                                style={[styles.optionBtn, format === item.id && styles.optionBtnActive]}
+                                onPress={() => setFormat(item.id)}
+                            >
+                                <Ionicons
+                                    name={item.icon}
+                                    size={16}
+                                    color={format === item.id ? colors.primary : colors.textSecondary}
+                                />
+                                <Text style={[styles.optionText, format === item.id && styles.optionTextActive]}>
+                                    {item.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
+                {/* Tone Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Tone</Text>
+                    <View style={styles.wrapRow}>
+                        {TONES.map((item) => (
+                            <TouchableOpacity
+                                key={item.id}
+                                style={[styles.optionBtn, tone === item.id && styles.optionBtnActive]}
+                                onPress={() => setTone(item.id)}
+                            >
+                                <Ionicons
+                                    name={item.icon}
+                                    size={16}
+                                    color={tone === item.id ? colors.primary : colors.textSecondary}
+                                />
+                                <Text style={[styles.optionText, tone === item.id && styles.optionTextActive]}>
+                                    {item.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
+                {/* Language Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Language</Text>
+                    <View style={styles.wrapRow}>
+                        {LANGUAGES.map((item) => (
+                            <TouchableOpacity
+                                key={item.id}
+                                style={[styles.optionBtn, language === item.id && styles.optionBtnActive]}
+                                onPress={() => setLanguage(item.id)}
+                            >
+                                <Text style={[styles.optionText, language === item.id && styles.optionTextActive]}>
+                                    {item.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
                 {/* Generate Button */}
                 <TouchableOpacity
                     style={styles.generateBtn}
@@ -516,35 +676,37 @@ export default function NotesScreen() {
                 </TouchableOpacity>
 
                 {/* Output */}
-                {generatedNotes ? (
-                    <View style={styles.outputSection}>
-                        <View style={styles.outputHeader}>
-                            <Text style={styles.outputTitle}>Generated Notes</Text>
-                        </View>
+                {
+                    generatedNotes ? (
+                        <View style={styles.outputSection}>
+                            <View style={styles.outputHeader}>
+                                <Text style={styles.outputTitle}>Generated Notes</Text>
+                            </View>
 
-                        {/* Action Buttons Row */}
-                        <View style={styles.actionRow}>
-                            <TouchableOpacity style={styles.actionBtn} onPress={regenerateNotes} disabled={isLoading}>
-                                <Ionicons name="refresh" size={18} color={colors.primary} />
-                                <Text style={styles.actionBtnText}>Regenerate</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.actionBtn} onPress={shareNotes}>
-                                <Ionicons name="share-outline" size={18} color={colors.secondary} />
-                                <Text style={[styles.actionBtnText, { color: colors.secondary }]}>Share</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.actionBtn} onPress={copyNotes}>
-                                <Ionicons name="copy-outline" size={18} color={colors.accent} />
-                                <Text style={[styles.actionBtnText, { color: colors.accent }]}>Copy</Text>
-                            </TouchableOpacity>
-                        </View>
+                            {/* Action Buttons Row */}
+                            <View style={styles.actionRow}>
+                                <TouchableOpacity style={styles.actionBtn} onPress={regenerateNotes} disabled={isLoading}>
+                                    <Ionicons name="refresh" size={18} color={colors.primary} />
+                                    <Text style={styles.actionBtnText}>Regenerate</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.actionBtn} onPress={shareNotes}>
+                                    <Ionicons name="share-outline" size={18} color={colors.secondary} />
+                                    <Text style={[styles.actionBtnText, { color: colors.secondary }]}>Share</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.actionBtn} onPress={copyNotes}>
+                                    <Ionicons name="copy-outline" size={18} color={colors.accent} />
+                                    <Text style={[styles.actionBtnText, { color: colors.accent }]}>Copy</Text>
+                                </TouchableOpacity>
+                            </View>
 
-                        <View style={styles.outputCard}>
-                            <Markdown style={markdownStyles}>{generatedNotes}</Markdown>
+                            <View style={styles.outputCard}>
+                                <Markdown style={markdownStyles}>{generatedNotes}</Markdown>
+                            </View>
                         </View>
-                    </View>
-                ) : null}
-            </ScrollView>
-        </View>
+                    ) : null
+                }
+            </ScrollView >
+        </View >
     );
 }
 
@@ -559,19 +721,21 @@ const createStyles = (colors) => StyleSheet.create({
     },
     tabContainer: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         backgroundColor: colors.surface,
         borderRadius: 16,
         padding: 4,
         marginBottom: 20,
     },
     tab: {
-        flex: 1,
+        width: '31%', // Fits 3 per row with gap
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: 12,
         borderRadius: 12,
         gap: 6,
+        marginBottom: 4,
     },
     tabActive: {
         backgroundColor: colors.primary,
@@ -720,6 +884,34 @@ const createStyles = (colors) => StyleSheet.create({
         color: colors.textMuted,
         fontSize: 13,
     },
+    linkContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        backgroundColor: colors.background,
+        padding: 4,
+        paddingRight: 12,
+        borderRadius: 12,
+        marginBottom: 12,
+    },
+    linkIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    linkInput: {
+        flex: 1,
+        fontSize: 15,
+        color: colors.text,
+        height: 44,
+    },
+    linkHint: {
+        color: colors.textMuted,
+        fontSize: 13,
+        textAlign: 'center',
+    },
     generateBtn: {
         borderRadius: 16,
         overflow: 'hidden',
@@ -786,7 +978,46 @@ const createStyles = (colors) => StyleSheet.create({
     },
     lengthRow: {
         flexDirection: 'row',
+        flexDirection: 'row',
         gap: 10,
+    },
+    section: {
+        marginBottom: 20,
+    },
+    sectionTitle: {
+        color: colors.text,
+        fontSize: 15,
+        fontWeight: '600',
+        marginBottom: 10,
+    },
+    wrapRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+    },
+    optionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: colors.surface,
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    optionBtnActive: {
+        borderColor: colors.primary,
+        backgroundColor: `${colors.primary}10`,
+    },
+    optionText: {
+        color: colors.textSecondary,
+        fontSize: 13,
+        fontWeight: '500',
+    },
+    optionTextActive: {
+        color: colors.text,
+        fontWeight: '600',
     },
     lengthBtn: {
         flex: 1,
