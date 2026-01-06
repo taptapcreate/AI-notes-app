@@ -22,7 +22,8 @@ import * as FileSystem from 'expo-file-system';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../context/ThemeContext';
 import { useHistory } from '../context/HistoryContext';
-import { generateNotes } from '../services/api';
+import { useFolders } from '../context/FoldersContext';
+import { generateNotes, generateFollowUp } from '../services/api';
 
 const { width } = Dimensions.get('window');
 
@@ -70,6 +71,7 @@ const LANGUAGES = [
 export default function NotesScreen() {
     const { colors } = useTheme();
     const { addNote } = useHistory();
+    const { folders } = useFolders();
     const [inputType, setInputType] = useState('text');
     const [textInput, setTextInput] = useState('');
     const [linkInput, setLinkInput] = useState('');
@@ -86,6 +88,14 @@ export default function NotesScreen() {
     const [tone, setTone] = useState('professional');
     const [language, setLanguage] = useState('English');
     const [lastContent, setLastContent] = useState(null);
+
+    // Follow-up state
+    const [followUpQuestion, setFollowUpQuestion] = useState('');
+    const [followUpResponse, setFollowUpResponse] = useState('');
+    const [isFollowUpLoading, setIsFollowUpLoading] = useState(false);
+
+    // Folder state
+    const [selectedFolder, setSelectedFolder] = useState('general');
 
     const pickImage = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -221,8 +231,8 @@ export default function NotesScreen() {
             const result = await generateNotes(inputType, content, { noteLength, format, tone, language });
             setGeneratedNotes(result);
 
-            // Save to history
-            addNote(result);
+            // Save to history with folder
+            addNote(result, selectedFolder);
         } catch (error) {
             console.error('Error generating notes:', error);
 
@@ -254,7 +264,7 @@ export default function NotesScreen() {
         try {
             const result = await generateNotes(lastContent.type, lastContent.content, { noteLength, format, tone, language });
             setGeneratedNotes(result);
-            addNote(result);
+            addNote(result, selectedFolder);
         } catch (error) {
             console.error('Error regenerating notes:', error);
             Alert.alert('Error', error.message || 'Failed to regenerate notes.');
@@ -281,6 +291,29 @@ export default function NotesScreen() {
         Alert.alert('Copied!', 'Notes copied to clipboard');
     };
 
+    const handleFollowUp = async () => {
+        if (!followUpQuestion.trim()) {
+            Alert.alert('Error', 'Please enter a follow-up question');
+            return;
+        }
+        if (!generatedNotes) {
+            Alert.alert('Error', 'Generate notes first before asking follow-up questions');
+            return;
+        }
+
+        setIsFollowUpLoading(true);
+        try {
+            const response = await generateFollowUp(generatedNotes, followUpQuestion, 'note');
+            setFollowUpResponse(response);
+            setFollowUpQuestion('');
+        } catch (error) {
+            console.error('Error generating follow-up:', error);
+            Alert.alert('Error', error.message || 'Failed to generate follow-up response.');
+        } finally {
+            setIsFollowUpLoading(false);
+        }
+    };
+
     const clearInput = () => {
         setTextInput('');
         setLinkInput('');
@@ -288,6 +321,8 @@ export default function NotesScreen() {
         setAudioUri(null);
         setSelectedPdf(null);
         setGeneratedNotes('');
+        setFollowUpQuestion('');
+        setFollowUpResponse('');
     };
 
     const styles = createStyles(colors);
@@ -651,6 +686,29 @@ export default function NotesScreen() {
                     </View>
                 </View>
 
+                {/* Folder Selector */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Save to Folder</Text>
+                    <View style={styles.wrapRow}>
+                        {folders.map((folder) => (
+                            <TouchableOpacity
+                                key={folder.id}
+                                style={[styles.folderBtn, selectedFolder === folder.id && styles.folderBtnActive]}
+                                onPress={() => setSelectedFolder(folder.id)}
+                            >
+                                <Ionicons
+                                    name={folder.icon}
+                                    size={16}
+                                    color={selectedFolder === folder.id ? '#fff' : folder.color}
+                                />
+                                <Text style={[styles.folderText, selectedFolder === folder.id && styles.folderTextActive]}>
+                                    {folder.name}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
                 {/* Generate Button */}
                 <TouchableOpacity
                     style={styles.generateBtn}
@@ -701,6 +759,68 @@ export default function NotesScreen() {
 
                             <View style={styles.outputCard}>
                                 <Markdown style={markdownStyles}>{generatedNotes}</Markdown>
+                            </View>
+
+                            {/* Follow-up Section */}
+                            <View style={styles.followUpSection}>
+                                <Text style={styles.followUpTitle}>Ask a Follow-up Question</Text>
+
+                                {/* Suggestion Chips */}
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsScroll}>
+                                    <View style={styles.suggestionsRow}>
+                                        {[
+                                            'Explain this in simpler terms',
+                                            'Give me more details',
+                                            'Summarize the key points',
+                                            'Create action items from this',
+                                        ].map((suggestion, index) => (
+                                            <TouchableOpacity
+                                                key={index}
+                                                style={styles.suggestionChip}
+                                                onPress={() => setFollowUpQuestion(suggestion)}
+                                            >
+                                                <Text style={styles.suggestionText}>{suggestion}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </ScrollView>
+
+                                <View style={styles.followUpInputRow}>
+                                    <TextInput
+                                        style={styles.followUpInput}
+                                        placeholder="Or type your own question..."
+                                        placeholderTextColor={colors.textMuted}
+                                        value={followUpQuestion}
+                                        onChangeText={setFollowUpQuestion}
+                                        multiline
+                                    />
+                                    <TouchableOpacity
+                                        style={styles.followUpBtn}
+                                        onPress={handleFollowUp}
+                                        disabled={isFollowUpLoading}
+                                    >
+                                        <LinearGradient
+                                            colors={colors.gradientSecondary}
+                                            style={styles.followUpBtnInner}
+                                        >
+                                            {isFollowUpLoading ? (
+                                                <ActivityIndicator color="#fff" size="small" />
+                                            ) : (
+                                                <Ionicons name="send" size={18} color="#fff" />
+                                            )}
+                                        </LinearGradient>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {followUpResponse ? (
+                                    <View style={styles.followUpResponseCard}>
+                                        <View style={styles.followUpResponseHeader}>
+                                            <Ionicons name="chatbubble-ellipses" size={16} color={colors.secondary} />
+                                            <Text style={styles.followUpResponseTitle}>AI Response</Text>
+                                        </View>
+                                        <Markdown style={markdownStyles}>{followUpResponse}</Markdown>
+                                    </View>
+                                ) : null}
                             </View>
                         </View>
                     ) : null
@@ -1058,6 +1178,89 @@ const createStyles = (colors) => StyleSheet.create({
     actionBtnText: {
         color: colors.primary,
         fontSize: 13,
+        fontWeight: '600',
+    },
+    // Folder Selector Styles
+    folderBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: colors.surface,
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    folderBtnActive: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
+    },
+    folderText: {
+        color: colors.textSecondary,
+        fontSize: 13,
+        fontWeight: '500',
+    },
+    folderTextActive: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+    // Follow-up Section Styles
+    followUpSection: {
+        marginTop: 20,
+        paddingTop: 20,
+        borderTopWidth: 1,
+        borderTopColor: colors.glassBorder,
+    },
+    followUpTitle: {
+        color: colors.text,
+        fontSize: 16,
+        fontWeight: '700',
+        marginBottom: 12,
+    },
+    followUpInputRow: {
+        flexDirection: 'row',
+        gap: 10,
+        alignItems: 'flex-end',
+    },
+    followUpInput: {
+        flex: 1,
+        backgroundColor: colors.surface,
+        borderRadius: 12,
+        padding: 14,
+        color: colors.text,
+        fontSize: 14,
+        minHeight: 50,
+        maxHeight: 100,
+        textAlignVertical: 'top',
+    },
+    followUpBtn: {
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+    followUpBtnInner: {
+        width: 50,
+        height: 50,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    followUpResponseCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 16,
+        padding: 16,
+        marginTop: 16,
+        borderLeftWidth: 4,
+        borderLeftColor: colors.secondary,
+    },
+    followUpResponseHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 12,
+    },
+    followUpResponseTitle: {
+        color: colors.secondary,
+        fontSize: 14,
         fontWeight: '600',
     },
 });

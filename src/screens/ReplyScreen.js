@@ -15,7 +15,7 @@ import * as Clipboard from 'expo-clipboard';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../context/ThemeContext';
 import { useHistory } from '../context/HistoryContext';
-import { generateReply } from '../services/api';
+import { generateReply, generateFollowUp } from '../services/api';
 
 const TONES = [
     { id: 'friendly', label: 'Friendly', icon: 'happy-outline' },
@@ -61,6 +61,12 @@ export default function ReplyScreen() {
     const [replies, setReplies] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
 
+    // Follow-up/Refine state
+    const [refineQuestion, setRefineQuestion] = useState('');
+    const [refinedReply, setRefinedReply] = useState('');
+    const [isRefineLoading, setIsRefineLoading] = useState(false);
+    const [selectedReplyIndex, setSelectedReplyIndex] = useState(0);
+
     const handleGenerate = async () => {
         if (!message.trim()) {
             Alert.alert('Error', 'Please paste a message to reply to');
@@ -93,6 +99,29 @@ export default function ReplyScreen() {
     const copyReply = async (reply) => {
         await Clipboard.setStringAsync(reply);
         Alert.alert('Copied!', 'Reply copied to clipboard');
+    };
+
+    const handleRefineReply = async () => {
+        if (!refineQuestion.trim()) {
+            Alert.alert('Error', 'Please enter a refinement request');
+            return;
+        }
+        if (replies.length === 0) {
+            Alert.alert('Error', 'Generate replies first before refining');
+            return;
+        }
+
+        setIsRefineLoading(true);
+        try {
+            const response = await generateFollowUp(replies[selectedReplyIndex], refineQuestion, 'reply');
+            setRefinedReply(response);
+            setRefineQuestion('');
+        } catch (error) {
+            console.error('Error refining reply:', error);
+            Alert.alert('Error', error.message || 'Failed to refine reply.');
+        } finally {
+            setIsRefineLoading(false);
+        }
     };
 
     const pasteFromClipboard = async () => {
@@ -231,13 +260,16 @@ export default function ReplyScreen() {
                     activeOpacity={0.8}
                 >
                     <LinearGradient
-                        colors={isLoading ? [colors.surfaceLight, colors.surface] : colors.gradientPrimary}
+                        colors={colors.gradientPrimary}
                         style={styles.generateBtnInner}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 0 }}
                     >
                         {isLoading ? (
-                            <ActivityIndicator color={colors.textMuted} />
+                            <>
+                                <ActivityIndicator color="#fff" size="small" />
+                                <Text style={styles.generateBtnText}>Generating...</Text>
+                            </>
                         ) : (
                             <>
                                 <Ionicons name="sparkles" size={20} color="#fff" />
@@ -265,6 +297,67 @@ export default function ReplyScreen() {
                                 <Markdown style={markdownStyles}>{reply}</Markdown>
                             </View>
                         ))}
+
+                        {/* Refine Reply Section */}
+                        <View style={styles.refineSection}>
+                            <Text style={styles.refineTitle}>Refine a Reply</Text>
+
+                            {/* Reply Selector */}
+                            <View style={styles.refineSelectorRow}>
+                                {replies.map((_, index) => (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={[styles.refineSelector, selectedReplyIndex === index && styles.refineSelectorActive]}
+                                        onPress={() => setSelectedReplyIndex(index)}
+                                    >
+                                        <Text style={[styles.refineSelectorText, selectedReplyIndex === index && styles.refineSelectorTextActive]}>
+                                            Option {index + 1}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <View style={styles.refineInputRow}>
+                                <TextInput
+                                    style={styles.refineInput}
+                                    placeholder="e.g., Make it shorter, more formal, add urgency..."
+                                    placeholderTextColor={colors.textMuted}
+                                    value={refineQuestion}
+                                    onChangeText={setRefineQuestion}
+                                    multiline
+                                />
+                                <TouchableOpacity
+                                    style={styles.refineBtn}
+                                    onPress={handleRefineReply}
+                                    disabled={isRefineLoading}
+                                >
+                                    <LinearGradient
+                                        colors={colors.gradientAccent}
+                                        style={styles.refineBtnInner}
+                                    >
+                                        {isRefineLoading ? (
+                                            <ActivityIndicator color="#fff" size="small" />
+                                        ) : (
+                                            <Ionicons name="color-wand" size={18} color="#fff" />
+                                        )}
+                                    </LinearGradient>
+                                </TouchableOpacity>
+                            </View>
+
+                            {refinedReply ? (
+                                <View style={styles.refinedReplyCard}>
+                                    <View style={styles.refinedReplyHeader}>
+                                        <Ionicons name="sparkles" size={16} color={colors.accent} />
+                                        <Text style={styles.refinedReplyTitle}>Refined Reply</Text>
+                                        <TouchableOpacity style={styles.copyBtn} onPress={() => copyReply(refinedReply)}>
+                                            <Ionicons name="copy-outline" size={14} color={colors.primary} />
+                                            <Text style={styles.copyBtnText}>Copy</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <Markdown style={markdownStyles}>{refinedReply}</Markdown>
+                                </View>
+                            ) : null}
+                        </View>
                     </View>
                 )}
             </ScrollView>
@@ -470,5 +563,90 @@ const createStyles = (colors) => StyleSheet.create({
         color: colors.text,
         fontSize: 14,
         lineHeight: 22,
+    },
+    // Refine Section Styles
+    refineSection: {
+        marginTop: 20,
+        paddingTop: 20,
+        borderTopWidth: 1,
+        borderTopColor: colors.glassBorder,
+    },
+    refineTitle: {
+        color: colors.text,
+        fontSize: 16,
+        fontWeight: '700',
+        marginBottom: 12,
+    },
+    refineSelectorRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 12,
+    },
+    refineSelector: {
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        backgroundColor: colors.surface,
+        borderRadius: 10,
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    refineSelectorActive: {
+        borderColor: colors.accent,
+        backgroundColor: `${colors.accent}15`,
+    },
+    refineSelectorText: {
+        color: colors.textMuted,
+        fontSize: 13,
+        fontWeight: '500',
+    },
+    refineSelectorTextActive: {
+        color: colors.accent,
+        fontWeight: '600',
+    },
+    refineInputRow: {
+        flexDirection: 'row',
+        gap: 10,
+        alignItems: 'flex-end',
+    },
+    refineInput: {
+        flex: 1,
+        backgroundColor: colors.surface,
+        borderRadius: 12,
+        padding: 14,
+        color: colors.text,
+        fontSize: 14,
+        minHeight: 50,
+        maxHeight: 100,
+        textAlignVertical: 'top',
+    },
+    refineBtn: {
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+    refineBtnInner: {
+        width: 50,
+        height: 50,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    refinedReplyCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 16,
+        padding: 16,
+        marginTop: 16,
+        borderLeftWidth: 4,
+        borderLeftColor: colors.accent,
+    },
+    refinedReplyHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 12,
+    },
+    refinedReplyTitle: {
+        flex: 1,
+        color: colors.accent,
+        fontSize: 14,
+        fontWeight: '600',
     },
 });

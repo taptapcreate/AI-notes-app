@@ -33,11 +33,12 @@ export const HistoryProvider = ({ children }) => {
         }
     };
 
-    const addNote = async (note) => {
+    const addNote = async (note, folderId = 'general') => {
         try {
             const newNote = {
                 id: Date.now().toString(),
                 content: note,
+                folderId: folderId,
                 createdAt: new Date().toISOString(),
                 type: 'note',
             };
@@ -115,6 +116,11 @@ export const HistoryProvider = ({ children }) => {
         };
     };
 
+    const getNotesByFolder = (folderId) => {
+        if (!folderId) return notes;
+        return notes.filter(note => note.folderId === folderId);
+    };
+
     return (
         <HistoryContext.Provider value={{
             notes,
@@ -126,6 +132,7 @@ export const HistoryProvider = ({ children }) => {
             deleteReply,
             clearAllHistory,
             getStats,
+            getNotesByFolder,
         }}>
             {children}
         </HistoryContext.Provider>

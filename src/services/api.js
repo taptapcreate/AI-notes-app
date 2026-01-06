@@ -71,7 +71,41 @@ export const generateReply = async (message, options) => {
     }
 };
 
+/**
+ * Generate follow-up response for notes or replies
+ * @param {string} context - The original generated content
+ * @param {string} question - The follow-up question
+ * @param {string} type - 'note' or 'reply'
+ */
+export const generateFollowUp = async (context, question, type = 'note') => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/followup`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                context,
+                question,
+                type,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.details || errorData.error || 'Failed to generate follow-up');
+        }
+
+        const data = await response.json();
+        return data.response;
+    } catch (error) {
+        console.error('API Error:', error);
+        throw error;
+    }
+};
+
 export default {
     generateNotes,
     generateReply,
+    generateFollowUp,
 };

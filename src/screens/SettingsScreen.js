@@ -13,9 +13,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 
-export default function SettingsScreen() {
+export default function SettingsScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
     const styles = createStyles(colors);
+
+    const handleUpgrade = () => {
+        navigation.navigate('Payment');
+    };
 
     const handleRateApp = () => {
         Alert.alert('Rate App', 'This will open the app store (coming soon!)');
@@ -86,6 +90,14 @@ export default function SettingsScreen() {
                 <View style={styles.section}>
                     <Text style={styles.sectionHeader}>GENERAL</Text>
                     <View style={styles.card}>
+                        <SettingItem
+                            icon="diamond"
+                            iconColor="#8B5CF6"
+                            title="Upgrade to Pro"
+                            subtitle="Unlock unlimited features"
+                            onPress={handleUpgrade}
+                        />
+                        <View style={styles.divider} />
                         <SettingItem
                             icon="star"
                             iconColor="#F59E0B"
