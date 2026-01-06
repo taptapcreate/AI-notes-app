@@ -317,10 +317,30 @@ export default function ReplyScreen() {
                                 ))}
                             </View>
 
+                            {/* Suggestion Chips */}
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsScroll}>
+                                <View style={styles.suggestionsRow}>
+                                    {[
+                                        'Make it shorter',
+                                        'More formal',
+                                        'Add urgency',
+                                        'Softer tone',
+                                    ].map((suggestion, index) => (
+                                        <TouchableOpacity
+                                            key={index}
+                                            style={styles.suggestionChip}
+                                            onPress={() => setRefineQuestion(suggestion)}
+                                        >
+                                            <Text style={styles.suggestionText}>{suggestion}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </ScrollView>
+
                             <View style={styles.refineInputRow}>
                                 <TextInput
                                     style={styles.refineInput}
-                                    placeholder="e.g., Make it shorter, more formal, add urgency..."
+                                    placeholder="Or type your own refinement..."
                                     placeholderTextColor={colors.textMuted}
                                     value={refineQuestion}
                                     onChangeText={setRefineQuestion}
@@ -648,5 +668,28 @@ const createStyles = (colors) => StyleSheet.create({
         color: colors.accent,
         fontSize: 14,
         fontWeight: '600',
+    },
+    // Suggestion Chips Styles
+    suggestionsScroll: {
+        marginBottom: 12,
+        marginHorizontal: -4,
+    },
+    suggestionsRow: {
+        flexDirection: 'row',
+        paddingHorizontal: 4,
+        gap: 8,
+    },
+    suggestionChip: {
+        backgroundColor: `${colors.accent}15`,
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: `${colors.accent}30`,
+    },
+    suggestionText: {
+        color: colors.accent,
+        fontSize: 13,
+        fontWeight: '500',
     },
 });
