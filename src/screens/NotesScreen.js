@@ -717,13 +717,16 @@ export default function NotesScreen() {
                     activeOpacity={0.8}
                 >
                     <LinearGradient
-                        colors={isLoading ? [colors.surfaceLight, colors.surface] : colors.gradientPrimary}
+                        colors={colors.gradientPrimary}
                         style={styles.generateBtnInner}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 0 }}
                     >
                         {isLoading ? (
-                            <ActivityIndicator color={colors.textMuted} />
+                            <>
+                                <ActivityIndicator color="#fff" size="small" />
+                                <Text style={styles.generateBtnText}>Generating...</Text>
+                            </>
                         ) : (
                             <>
                                 <Ionicons name="sparkles" size={20} color="#fff" />
