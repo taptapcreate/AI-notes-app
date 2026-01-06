@@ -1263,4 +1263,27 @@ const createStyles = (colors) => StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
     },
+    // Suggestion Chips Styles
+    suggestionsScroll: {
+        marginBottom: 12,
+        marginHorizontal: -4,
+    },
+    suggestionsRow: {
+        flexDirection: 'row',
+        paddingHorizontal: 4,
+        gap: 8,
+    },
+    suggestionChip: {
+        backgroundColor: `${colors.secondary}15`,
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: `${colors.secondary}30`,
+    },
+    suggestionText: {
+        color: colors.secondary,
+        fontSize: 13,
+        fontWeight: '500',
+    },
 });
