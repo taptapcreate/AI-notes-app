@@ -16,6 +16,7 @@ import CreditsScreen from './src/screens/CreditsScreen';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { HistoryProvider } from './src/context/HistoryContext';
 import { FoldersProvider } from './src/context/FoldersContext';
+import { UserProvider } from './src/context/UserContext';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -187,11 +188,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <FoldersProvider>
-          <HistoryProvider>
-            <MainApp />
-          </HistoryProvider>
-        </FoldersProvider>
+        <UserProvider>
+          <FoldersProvider>
+            <HistoryProvider>
+              <MainApp />
+            </HistoryProvider>
+          </FoldersProvider>
+        </UserProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

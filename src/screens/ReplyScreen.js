@@ -9,12 +9,14 @@ import {
     ActivityIndicator,
     Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../context/ThemeContext';
 import { useHistory } from '../context/HistoryContext';
+import { useUser } from '../context/UserContext';
 import { generateReply, generateFollowUp } from '../services/api';
 
 const TONES = [
@@ -53,7 +55,9 @@ const FORMATS = [
 
 export default function ReplyScreen() {
     const { colors } = useTheme();
+    const navigation = useNavigation();
     const { addReply } = useHistory();
+    const { useCredits, checkAvailability } = useUser();
     const [message, setMessage] = useState('');
     const [selectedTone, setSelectedTone] = useState('professional');
     const [selectedStyle, setSelectedStyle] = useState('short');
@@ -68,6 +72,18 @@ export default function ReplyScreen() {
     const [selectedReplyIndex, setSelectedReplyIndex] = useState(0);
 
     const handleGenerate = async () => {
+        if (!checkAvailability(1)) {
+            Alert.alert(
+                'Credits Exhausted',
+                'You have reached your daily AI limit. Buy credits or wait until tomorrow for more free credits.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Buy Credits', onPress: () => navigation.navigate('Credits') }
+                ]
+            );
+            return;
+        }
+
         if (!message.trim()) {
             Alert.alert('Error', 'Please paste a message to reply to');
             return;
@@ -82,6 +98,8 @@ export default function ReplyScreen() {
                 style: selectedStyle,
                 format: selectedFormat,
             });
+
+            await useCredits(1);
             setReplies(result);
 
             // Save first reply to history
@@ -102,6 +120,10 @@ export default function ReplyScreen() {
     };
 
     const handleRefineReply = async () => {
+        if (!checkAvailability(1)) {
+            Alert.alert('Credits Exhausted', 'Please buy more credits to refine replies.');
+            return;
+        }
         if (!refineQuestion.trim()) {
             Alert.alert('Error', 'Please enter a refinement request');
             return;
@@ -114,6 +136,7 @@ export default function ReplyScreen() {
         setIsRefineLoading(true);
         try {
             const response = await generateFollowUp(replies[selectedReplyIndex], refineQuestion, 'reply');
+            await useCredits(1);
             setRefinedReply(response);
             setRefineQuestion('');
         } catch (error) {

@@ -12,6 +12,7 @@ import {
     Dimensions,
     Share,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,6 +24,7 @@ import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../context/ThemeContext';
 import { useHistory } from '../context/HistoryContext';
 import { useFolders } from '../context/FoldersContext';
+import { useUser } from '../context/UserContext';
 import { generateNotes, generateFollowUp } from '../services/api';
 
 const { width } = Dimensions.get('window');
@@ -70,8 +72,10 @@ const LANGUAGES = [
 
 export default function NotesScreen() {
     const { colors } = useTheme();
+    const navigation = useNavigation();
     const { addNote } = useHistory();
     const { folders } = useFolders();
+    const { useCredits, checkAvailability } = useUser();
     const [inputType, setInputType] = useState('text');
     const [textInput, setTextInput] = useState('');
     const [linkInput, setLinkInput] = useState('');
@@ -170,6 +174,18 @@ export default function NotesScreen() {
     };
 
     const handleGenerate = async () => {
+        if (!checkAvailability(1)) {
+            Alert.alert(
+                'Credits Exhausted',
+                'You have reached your daily AI limit. Buy credits or wait until tomorrow for more free credits.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Buy Credits', onPress: () => navigation.navigate('Credits') }
+                ]
+            );
+            return;
+        }
+
         setIsLoading(true);
         setGeneratedNotes('');
 
@@ -229,6 +245,10 @@ export default function NotesScreen() {
 
             console.log(`[DEBUG] Generating notes for Type: ${inputType}, Content: ${content}`);
             const result = await generateNotes(inputType, content, { noteLength, format, tone, language });
+
+            // Deduct credit only on success
+            await useCredits(1);
+
             setGeneratedNotes(result);
 
             // Save to history with folder
@@ -292,6 +312,10 @@ export default function NotesScreen() {
     };
 
     const handleFollowUp = async () => {
+        if (!checkAvailability(1)) {
+            Alert.alert('Credits Exhausted', 'Please buy more credits to ask follow-up questions.');
+            return;
+        }
         if (!followUpQuestion.trim()) {
             Alert.alert('Error', 'Please enter a follow-up question');
             return;
@@ -304,6 +328,7 @@ export default function NotesScreen() {
         setIsFollowUpLoading(true);
         try {
             const response = await generateFollowUp(generatedNotes, followUpQuestion, 'note');
+            await useCredits(1);
             setFollowUpResponse(response);
             setFollowUpQuestion('');
         } catch (error) {

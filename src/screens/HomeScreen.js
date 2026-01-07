@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { useHistory } from '../context/HistoryContext';
+import { useUser } from '../context/UserContext';
 import Markdown from 'react-native-markdown-display';
 
 const { width } = Dimensions.get('window');
@@ -38,9 +39,11 @@ const formatDate = (timestamp) => {
 export default function HomeScreen({ navigation }) {
     const { colors } = useTheme();
     const { notes, replies, getStats } = useHistory();
+    const { getCreditData } = useUser();
     const greeting = getGreeting();
     const stats = getStats();
     const styles = createStyles(colors);
+    const credits = getCreditData();
 
     // Get recent items (last 3)
     const recentNotes = notes.slice(0, 3);
@@ -123,10 +126,12 @@ export default function HomeScreen({ navigation }) {
                     >
                         <View style={styles.creditsInfo}>
                             <Ionicons name="flash" size={20} color="#fff" />
-                            <Text style={styles.creditsTitle}>AI Credits Available</Text>
+                            <Text style={styles.creditsTitle}>
+                                {credits.remainingFree > 0 ? 'Daily Free Credits' : 'Credits Available'}
+                            </Text>
                         </View>
                         <View style={styles.creditsValueContainer}>
-                            <Text style={styles.creditsValue}>5</Text>
+                            <Text style={styles.creditsValue}>{credits.totalAvailable}</Text>
                             <Ionicons name="add-circle" size={24} color="#fff" />
                         </View>
                     </LinearGradient>

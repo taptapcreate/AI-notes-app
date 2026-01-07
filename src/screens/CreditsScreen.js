@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
     View,
     Text,
@@ -11,51 +11,41 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
+import { useUser } from '../context/UserContext';
 
 const { width } = Dimensions.get('window');
 
 const CREDIT_PACKS = [
     {
         id: 'starter',
-        name: 'Starter Pack',
-        credits: 50,
+        name: 'Lite Pack',
+        credits: 100,
         price: '₹49',
         priceValue: 49,
-        description: 'Perfect for quick tasks',
+        description: 'Great for small tasks',
         icon: 'flashlight-outline',
         bonus: null,
     },
     {
         id: 'standard',
-        name: 'Standard Pack',
-        credits: 150,
+        name: 'Power Pack',
+        credits: 300,
         price: '₹99',
         priceValue: 99,
-        description: 'Best for casual users',
+        description: 'Most popular choice',
         icon: 'flash-outline',
         popular: true,
         bonus: '+50 Bonus',
     },
     {
         id: 'pro',
-        name: 'Professional Pack',
-        credits: 700,
-        price: '₹399',
-        priceValue: 399,
-        description: 'For heavy AI usage',
+        name: 'Elite Pack',
+        credits: 1000,
+        price: '₹249',
+        priceValue: 249,
+        description: 'For power users',
         icon: 'rocket-outline',
         bonus: '+200 Bonus',
-    },
-    {
-        id: 'max',
-        name: 'Ultimate Pack',
-        credits: 1500,
-        price: '₹799',
-        priceValue: 799,
-        description: 'Power user limit',
-        icon: 'infinite-outline',
-        bestValue: true,
-        bonus: '+500 Bonus',
     },
 ];
 
@@ -68,8 +58,9 @@ const LIMIT_INFO = [
 
 export default function CreditsScreen({ navigation }) {
     const { colors } = useTheme();
+    const { getCreditData, addCredits } = useUser();
     const styles = createStyles(colors);
-    const [userCredits, setUserCredits] = useState(5); // Example current balance
+    const credits = getCreditData();
 
     const handlePurchase = (pack) => {
         Alert.alert(
@@ -79,7 +70,10 @@ export default function CreditsScreen({ navigation }) {
                 { text: 'Cancel', style: 'cancel' },
                 {
                     text: 'Confirm',
-                    onPress: () => Alert.alert('Payment Initialized', 'Payment gateway will open here.')
+                    onPress: () => {
+                        addCredits(pack.credits);
+                        Alert.alert('Success', `${pack.credits} credits have been added to your account!`);
+                    }
                 }
             ]
         );
@@ -100,8 +94,11 @@ export default function CreditsScreen({ navigation }) {
                     end={{ x: 1, y: 1 }}
                 >
                     <View>
-                        <Text style={styles.balanceLabel}>Current Balance</Text>
-                        <Text style={styles.balanceValue}>{userCredits} Credits</Text>
+                        <Text style={styles.balanceLabel}>Total Available</Text>
+                        <Text style={styles.balanceValue}>{credits.totalAvailable} Credits</Text>
+                        <Text style={styles.dailyInfo}>
+                            Includes {credits.remainingFree} free daily credits
+                        </Text>
                     </View>
                     <Ionicons name="wallet-outline" size={40} color="#fff" style={styles.walletIcon} />
                 </LinearGradient>
@@ -225,6 +222,12 @@ const createStyles = (colors) => StyleSheet.create({
         fontSize: 32,
         fontWeight: '800',
         marginTop: 4,
+    },
+    dailyInfo: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 12,
+        marginTop: 4,
+        fontWeight: '500',
     },
     walletIcon: {
         opacity: 0.9,
