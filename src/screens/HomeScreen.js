@@ -109,6 +109,29 @@ export default function HomeScreen({ navigation }) {
                     <Text style={styles.greetingSubtext}>What would you like to create today?</Text>
                 </View>
 
+                {/* Credits Summary */}
+                <TouchableOpacity
+                    style={styles.creditsSummary}
+                    activeOpacity={0.9}
+                    onPress={() => navigation.navigate('Credits')}
+                >
+                    <LinearGradient
+                        colors={[colors.primary, colors.secondary]}
+                        style={styles.creditsGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                    >
+                        <View style={styles.creditsInfo}>
+                            <Ionicons name="flash" size={20} color="#fff" />
+                            <Text style={styles.creditsTitle}>AI Credits Available</Text>
+                        </View>
+                        <View style={styles.creditsValueContainer}>
+                            <Text style={styles.creditsValue}>5</Text>
+                            <Ionicons name="add-circle" size={24} color="#fff" />
+                        </View>
+                    </LinearGradient>
+                </TouchableOpacity>
+
                 {/* Quick Actions */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -206,6 +229,42 @@ const createStyles = (colors) => StyleSheet.create({
     content: {
         padding: 16,
         paddingBottom: 32,
+    },
+    creditsSummary: {
+        marginBottom: 24,
+        borderRadius: 16,
+        overflow: 'hidden',
+        elevation: 4,
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+    },
+    creditsGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 16,
+    },
+    creditsInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    creditsTitle: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    creditsValueContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    creditsValue: {
+        color: '#fff',
+        fontSize: 20,
+        fontWeight: '800',
     },
     greetingSection: {
         alignItems: 'center',

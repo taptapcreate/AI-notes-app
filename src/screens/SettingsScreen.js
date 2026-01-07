@@ -17,6 +17,10 @@ export default function SettingsScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
     const styles = createStyles(colors);
 
+    const handleCredits = () => {
+        navigation.navigate('Credits');
+    };
+
     const handleUpgrade = () => {
         navigation.navigate('Payment');
     };
@@ -90,6 +94,14 @@ export default function SettingsScreen({ navigation }) {
                 <View style={styles.section}>
                     <Text style={styles.sectionHeader}>GENERAL</Text>
                     <View style={styles.card}>
+                        <SettingItem
+                            icon="flash"
+                            iconColor="#10B981"
+                            title="Buy Credits"
+                            subtitle="Top up your AI power"
+                            onPress={handleCredits}
+                        />
+                        <View style={styles.divider} />
                         <SettingItem
                             icon="diamond"
                             iconColor="#8B5CF6"

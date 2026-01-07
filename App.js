@@ -12,6 +12,7 @@ import NotesScreen from './src/screens/NotesScreen';
 import ReplyScreen from './src/screens/ReplyScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import PaymentScreen from './src/screens/PaymentScreen';
+import CreditsScreen from './src/screens/CreditsScreen';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { HistoryProvider } from './src/context/HistoryContext';
 import { FoldersProvider } from './src/context/FoldersContext';
@@ -166,6 +167,14 @@ function MainApp() {
           component={PaymentScreen}
           options={{
             headerTitle: 'Go Pro',
+            presentation: 'modal',
+          }}
+        />
+        <Stack.Screen
+          name="Credits"
+          component={CreditsScreen}
+          options={{
+            headerTitle: 'Buy Credits',
             presentation: 'modal',
           }}
         />
