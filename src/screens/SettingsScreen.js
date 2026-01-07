@@ -61,8 +61,8 @@ export default function SettingsScreen({ navigation }) {
                     <LinearGradient colors={colors.gradientPrimary} style={styles.profileAvatar}>
                         <Ionicons name="person" size={40} color="#fff" />
                     </LinearGradient>
-                    <Text style={styles.profileName}>AI Assistant</Text>
-                    <Text style={styles.profileSubtitle}>Smart Notes & Reply</Text>
+                    <Text style={styles.profileName}>AI Notes</Text>
+                    <Text style={styles.profileSubtitle}>Write & Reply</Text>
                 </View>
 
                 {/* Appearance Section */}

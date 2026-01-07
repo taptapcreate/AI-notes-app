@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "AI Assistant",
-    "slug": "ai-assistant-app",
+    "name": "AI Notes: Write & Reply",
+    "slug": "ai-notes-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,6 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.taptapcreate.ainotes",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "This app needs microphone access to record voice notes",
         "NSCameraUsageDescription": "This app needs camera access to capture images for note extraction",
@@ -21,6 +22,7 @@
       }
     },
     "android": {
+      "package": "com.taptapcreate.ainotes",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0F172A"
@@ -39,14 +41,14 @@
       [
         "expo-av",
         {
-          "microphonePermission": "Allow AI Assistant to access your microphone for voice notes."
+          "microphonePermission": "Allow AI Notes to access your microphone for voice notes."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow AI Assistant to access your photos for note extraction.",
-          "cameraPermission": "Allow AI Assistant to use your camera for capturing images."
+          "photosPermission": "Allow AI Notes to access your photos for note extraction.",
+          "cameraPermission": "Allow AI Notes to use your camera for capturing images."
         }
       ]
     ]
