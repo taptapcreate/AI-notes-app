@@ -139,6 +139,9 @@ const LIMIT_INFO = [
     { label: 'Priority Server', cost: 'Free', icon: 'speedometer-outline' },
 ];
 
+// 🔧 DEV MODE - Set to false before production release!
+const DEV_MODE = true;
+
 export default function CreditsScreen({ navigation }) {
     const { colors } = useTheme();
     const { getCreditData, addCredits, syncBalance, recoveryCode } = useUser();
@@ -148,6 +151,13 @@ export default function CreditsScreen({ navigation }) {
     // Daily Gifts State
     const [streakStatus, setStreakStatus] = useState(null);
     const [isCheckingIn, setIsCheckingIn] = useState(false);
+
+    // DEV: Test mode state
+    const [devTestCredits, setDevTestCredits] = useState(100);
+
+    // RevenueCat offerings/prices state
+    const [rcPackages, setRcPackages] = useState({});
+    const [pricesLoaded, setPricesLoaded] = useState(false);
 
     // Load streak status and init RevenueCat on mount and focus
     const loadStreakStatus = useCallback(async () => {
@@ -162,11 +172,58 @@ export default function CreditsScreen({ navigation }) {
                 // Initialize RevenueCat with recovery code as user ID
                 await PurchaseService.initializePurchases(recoveryCode);
                 await syncBalance();
+
+                // Fetch offerings/prices from RevenueCat
+                const offeringsResult = await PurchaseService.getOfferings();
+                if (offeringsResult.success) {
+                    const packages = {};
+
+                    // Check current offering packages
+                    if (offeringsResult.offerings?.availablePackages) {
+                        offeringsResult.offerings.availablePackages.forEach(pkg => {
+                            packages[pkg.product.identifier] = {
+                                package: pkg,
+                                price: pkg.product.priceString,
+                                priceValue: pkg.product.price,
+                            };
+                        });
+                    }
+
+                    // Also check ALL offerings (credit packs might be in separate offerings)
+                    if (offeringsResult.all) {
+                        Object.values(offeringsResult.all).forEach(offering => {
+                            if (offering.availablePackages) {
+                                offering.availablePackages.forEach(pkg => {
+                                    // Don't overwrite if already have it
+                                    if (!packages[pkg.product.identifier]) {
+                                        packages[pkg.product.identifier] = {
+                                            package: pkg,
+                                            price: pkg.product.priceString,
+                                            priceValue: pkg.product.price,
+                                        };
+                                    }
+                                });
+                            }
+                        });
+                    }
+
+                    setRcPackages(packages);
+                    setPricesLoaded(true);
+                    console.log('📦 RevenueCat packages loaded:', Object.keys(packages));
+                }
             };
             init();
             loadStreakStatus();
         }, [loadStreakStatus, recoveryCode, syncBalance])
     );
+
+    // Helper to get price from RevenueCat or fallback
+    const getPrice = (productId, fallbackPrice) => {
+        if (rcPackages[productId]) {
+            return rcPackages[productId].price;
+        }
+        return fallbackPrice;
+    };
 
     // Handle daily check-in with rewarded ad
     const handleDailyCheckIn = async () => {
@@ -316,14 +373,55 @@ export default function CreditsScreen({ navigation }) {
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                 >
-                    <View>
-                        <Text style={styles.balanceLabel}>Total Available</Text>
-                        <Text style={styles.balanceValue}>{credits.totalAvailable} Credits</Text>
-                        <Text style={styles.dailyInfo}>
-                            Includes {credits.remainingFree} free daily credits
-                        </Text>
+                    <View style={styles.balanceMain}>
+                        {credits.hasProSubscription ? (
+                            // Subscriber view
+                            <>
+                                <View style={styles.proBadge}>
+                                    <Ionicons name="star" size={14} color="#FFD700" />
+                                    <Text style={styles.proBadgeText}>PRO SUBSCRIBER</Text>
+                                </View>
+                                <Text style={styles.balanceValue}>Unlimited Access</Text>
+                                <View style={styles.creditBreakdown}>
+                                    <View style={styles.creditType}>
+                                        <View style={[styles.creditDot, { backgroundColor: '#6366F1' }]} />
+                                        <Text style={styles.creditTypeText}>
+                                            {credits.subscriptionType === 'monthly' ? 'Monthly Plan' : 'Weekly Plan'} Active
+                                        </Text>
+                                    </View>
+                                    {credits.purchasedCredits > 0 && (
+                                        <View style={styles.creditType}>
+                                            <View style={[styles.creditDot, { backgroundColor: '#FFD700' }]} />
+                                            <Text style={styles.creditTypeText}>
+                                                {credits.purchasedCredits} Purchased (on hold)
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
+                            </>
+                        ) : (
+                            // Non-subscriber view
+                            <>
+                                <Text style={styles.balanceLabel}>Total Available</Text>
+                                <Text style={styles.balanceValue}>{credits.totalAvailable} Credits</Text>
+                                <View style={styles.creditBreakdown}>
+                                    <View style={styles.creditType}>
+                                        <View style={[styles.creditDot, { backgroundColor: '#4CAF50' }]} />
+                                        <Text style={styles.creditTypeText}>
+                                            {credits.remainingFree} Free (Daily)
+                                        </Text>
+                                    </View>
+                                    <View style={styles.creditType}>
+                                        <View style={[styles.creditDot, { backgroundColor: '#FFD700' }]} />
+                                        <Text style={styles.creditTypeText}>
+                                            {credits.purchasedCredits} Purchased
+                                        </Text>
+                                    </View>
+                                </View>
+                            </>
+                        )}
                     </View>
-                    <Ionicons name="wallet-outline" size={40} color="#fff" style={styles.walletIcon} />
+                    <Ionicons name={credits.hasProSubscription ? "star" : "wallet-outline"} size={40} color="#fff" style={styles.walletIcon} />
                 </LinearGradient>
 
                 {/* Info Section */}
@@ -489,7 +587,7 @@ export default function CreditsScreen({ navigation }) {
                             ]}>
                                 <View style={styles.subscriptionInfo}>
                                     <Text style={styles.subscriptionName}>{plan.name}</Text>
-                                    <Text style={styles.subscriptionPriceMain}>{plan.price}</Text>
+                                    <Text style={styles.subscriptionPriceMain}>{getPrice(plan.id, plan.price)}</Text>
                                 </View>
 
                                 <View style={styles.subscriptionPriceContainer}>
@@ -552,7 +650,7 @@ export default function CreditsScreen({ navigation }) {
                                 </View>
 
                                 <View style={styles.packPriceContainer}>
-                                    <Text style={styles.packPrice}>{pack.price}</Text>
+                                    <Text style={styles.packPrice}>{getPrice(pack.id, pack.price)}</Text>
                                     <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
                                 </View>
                             </View>
@@ -579,6 +677,65 @@ export default function CreditsScreen({ navigation }) {
                         Credits never expire. Purchases are synced across devices.
                     </Text>
                 </View>
+
+                {/* DEV TEST MODE PANEL - Remove before production */}
+                {DEV_MODE && (
+                    <View style={styles.devPanel}>
+                        <View style={styles.devPanelHeader}>
+                            <Ionicons name="construct" size={20} color="#FF6B6B" />
+                            <Text style={styles.devPanelTitle}>🔧 DEV TEST MODE</Text>
+                        </View>
+                        <Text style={styles.devPanelSubtitle}>
+                            Recovery Code: {recoveryCode || 'Loading...'}
+                        </Text>
+
+                        <View style={styles.devButtonRow}>
+                            <TouchableOpacity
+                                style={styles.devButton}
+                                onPress={() => {
+                                    addCredits(100, `dev_test_${Date.now()}`);
+                                    Alert.alert('✅ Dev Mode', '100 test credits added!');
+                                }}
+                            >
+                                <Text style={styles.devButtonText}>+100 Credits</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.devButton}
+                                onPress={() => {
+                                    addCredits(500, `dev_test_${Date.now()}`);
+                                    Alert.alert('✅ Dev Mode', '500 test credits added!');
+                                }}
+                            >
+                                <Text style={styles.devButtonText}>+500 Credits</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.devButton}
+                                onPress={() => {
+                                    addCredits(1000, `dev_test_${Date.now()}`);
+                                    Alert.alert('✅ Dev Mode', '1000 test credits added!');
+                                }}
+                            >
+                                <Text style={styles.devButtonText}>+1000 Credits</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.devButton, { backgroundColor: '#4CAF50', marginTop: 8 }]}
+                            onPress={async () => {
+                                await syncBalance();
+                                Alert.alert('✅ Synced', 'Credits synced from server!');
+                            }}
+                        >
+                            <Text style={styles.devButtonText}>🔄 Sync from Server</Text>
+                        </TouchableOpacity>
+
+                        <Text style={[styles.devPanelSubtitle, { marginTop: 12, color: '#FF6B6B' }]}>
+                            ⚠️ Remove DEV_MODE before production!
+                        </Text>
+                    </View>
+                )}
             </ScrollView>
         </View>
     );
@@ -619,11 +776,45 @@ const createStyles = (colors) => StyleSheet.create({
         fontWeight: '800',
         marginTop: 4,
     },
-    dailyInfo: {
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: 12,
-        marginTop: 4,
-        fontWeight: '500',
+    balanceMain: {
+        flex: 1,
+    },
+    creditBreakdown: {
+        flexDirection: 'row',
+        marginTop: 12,
+        gap: 16,
+    },
+    creditType: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    creditDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    creditTypeText: {
+        color: 'rgba(255,255,255,0.9)',
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    proBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,215,0,0.2)',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        gap: 4,
+        alignSelf: 'flex-start',
+        marginBottom: 4,
+    },
+    proBadgeText: {
+        color: '#FFD700',
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 1,
     },
     walletIcon: {
         opacity: 0.9,
@@ -1011,6 +1202,49 @@ const createStyles = (colors) => StyleSheet.create({
     restoreButtonText: {
         color: colors.primary,
         fontSize: 15,
+        fontWeight: '600',
+    },
+    // DEV Panel Styles
+    devPanel: {
+        backgroundColor: '#1a1a2e',
+        borderRadius: 16,
+        padding: 16,
+        marginTop: 20,
+        marginBottom: 30,
+        borderWidth: 2,
+        borderColor: '#FF6B6B',
+    },
+    devPanelHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 8,
+    },
+    devPanelTitle: {
+        color: '#FF6B6B',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    devPanelSubtitle: {
+        color: '#888',
+        fontSize: 12,
+        marginBottom: 12,
+    },
+    devButtonRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    devButton: {
+        flex: 1,
+        backgroundColor: '#FF6B6B',
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    devButtonText: {
+        color: '#fff',
+        fontSize: 12,
         fontWeight: '600',
     },
 });
