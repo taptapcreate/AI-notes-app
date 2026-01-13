@@ -50,7 +50,8 @@
           "photosPermission": "Allow AI Notes to access your photos for note extraction.",
           "cameraPermission": "Allow AI Notes to use your camera for capturing images."
         }
-      ]
+      ],
+      "expo-secure-store"
     ]
   }
 }

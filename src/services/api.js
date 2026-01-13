@@ -1,9 +1,7 @@
 // API Service for connecting to backend
 
-// Update this to your backend URL
-// For local development: use your computer's IP address
-// For production: your deployed server URL (e.g., https://your-app.onrender.com)
-const API_BASE_URL = 'http://192.168.29.62:3000/api';
+// Production backend URL
+const API_BASE_URL = 'https://ai-notes-app-backend-h9r0.onrender.com/api';
 
 /**
  * Generate notes from various input types

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -7,27 +7,59 @@ import {
     TouchableOpacity,
     Alert,
     Dimensions,
+    ActivityIndicator,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { useUser } from '../context/UserContext';
+import { useFocusEffect } from '@react-navigation/native';
+import {
+    getStreakStatus,
+    performDailyCheckIn,
+    STREAK_REWARDS
+} from '../services/DailyRewardsService';
+import PurchaseService, { PRODUCT_IDS, CREDITS_PER_PRODUCT } from '../services/PurchaseService';
 
 const { width } = Dimensions.get('window');
 
-const CREDIT_PACKS = [
+// Subscription Plans (IDs match RevenueCat)
+const SUBSCRIPTION_PLANS = [
     {
-        id: 'mini',
-        name: 'Mini Pack',
-        credits: 30,
-        price: '₹19',
-        priceValue: 19,
-        description: 'Try it out',
-        icon: 'sparkles-outline',
-        bonus: null,
+        id: PRODUCT_IDS.MONTHLY_SUBSCRIPTION,
+        name: 'Monthly Plan',
+        credits: 2500,
+        price: '₹599',
+        priceValue: 599,
+        priceUSD: '$6.99',
+        period: '/month',
+        perWeek: '₹150',
+        description: 'Best value for regular users',
+        icon: 'infinite-outline',
+        features: ['Extended AI usage', 'No ads', 'Priority processing'],
+        recommended: true,
     },
     {
-        id: 'starter',
+        id: PRODUCT_IDS.WEEKLY_SUBSCRIPTION,
+        name: 'Weekly Plan',
+        credits: 500,
+        price: '₹199',
+        priceValue: 199,
+        priceUSD: '$2.99',
+        period: '/week',
+        perWeek: '₹199',
+        description: 'Try it out',
+        icon: 'time-outline',
+        features: ['Weekly AI credits', 'No ads', 'Priority processing'],
+        recommended: false,
+    },
+];
+
+// Credit Packs (IDs match RevenueCat)
+const CREDIT_PACKS = [
+    {
+        id: PRODUCT_IDS.LITE_PACK,
         name: 'Lite Pack',
         credits: 100,
         price: '₹49',
@@ -37,66 +69,66 @@ const CREDIT_PACKS = [
         bonus: null,
     },
     {
-        id: 'standard',
+        id: PRODUCT_IDS.POWER_PACK,
         name: 'Power Pack',
-        credits: 300,
+        credits: 350,
         price: '₹99',
         priceValue: 99,
         description: 'Most popular choice',
         icon: 'flash-outline',
         popular: true,
-        bonus: '+50 Bonus',
+        bonus: null,
     },
     {
-        id: 'pro',
+        id: PRODUCT_IDS.PRO_PACK,
         name: 'Pro Pack',
-        credits: 500,
+        credits: 550,
         price: '₹179',
         priceValue: 179,
         description: 'Great value for regulars',
         icon: 'trending-up-outline',
-        bonus: '+50 Bonus',
+        bonus: null,
     },
     {
-        id: 'elite',
+        id: PRODUCT_IDS.ELITE_PACK,
         name: 'Elite Pack',
-        credits: 800,
+        credits: 900,
         price: '₹299',
         priceValue: 299,
         description: 'For power users',
         icon: 'rocket-outline',
-        bonus: '+100 Bonus',
+        bonus: null,
     },
     {
-        id: 'ultimate',
+        id: PRODUCT_IDS.ULTIMATE_PACK,
         name: 'Ultimate Pack',
-        credits: 1500,
+        credits: 1800,
         price: '₹549',
         priceValue: 549,
         description: 'Maximum savings',
         icon: 'diamond-outline',
-        bonus: '+300 Bonus',
+        bonus: null,
     },
     {
-        id: 'mega',
+        id: PRODUCT_IDS.MEGA_PACK,
         name: 'Mega Pack',
-        credits: 3000,
+        credits: 3500,
         price: '₹999',
         priceValue: 999,
         description: 'For professionals',
         icon: 'star-outline',
-        bonus: '+500 Bonus',
+        bonus: null,
     },
     {
-        id: 'supreme',
+        id: PRODUCT_IDS.SUPREME_PACK,
         name: 'Supreme Pack',
-        credits: 4000,
+        credits: 5000,
         price: '₹2999',
         priceValue: 2999,
         description: 'Unlimited power',
         icon: 'trophy-outline',
         bestValue: true,
-        bonus: '+1000 Bonus',
+        bonus: null,
     },
 ];
 
@@ -109,25 +141,165 @@ const LIMIT_INFO = [
 
 export default function CreditsScreen({ navigation }) {
     const { colors } = useTheme();
-    const { getCreditData, addCredits } = useUser();
+    const { getCreditData, addCredits, syncBalance, recoveryCode } = useUser();
     const styles = createStyles(colors);
     const credits = getCreditData();
 
-    const handlePurchase = (pack) => {
-        Alert.alert(
-            'Confirm Purchase',
-            `Buy ${pack.credits} Credits for ${pack.price}?\n\nCredits will be added instantly to your account.`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Confirm',
-                    onPress: () => {
-                        addCredits(pack.credits);
-                        Alert.alert('Success', `${pack.credits} credits have been added to your account!`);
-                    }
+    // Daily Gifts State
+    const [streakStatus, setStreakStatus] = useState(null);
+    const [isCheckingIn, setIsCheckingIn] = useState(false);
+
+    // Load streak status and init RevenueCat on mount and focus
+    const loadStreakStatus = useCallback(async () => {
+        const status = await getStreakStatus();
+        setStreakStatus(status);
+    }, []);
+
+    // Initialize RevenueCat and sync balance on focus
+    useFocusEffect(
+        useCallback(() => {
+            const init = async () => {
+                // Initialize RevenueCat with recovery code as user ID
+                await PurchaseService.initializePurchases(recoveryCode);
+                await syncBalance();
+            };
+            init();
+            loadStreakStatus();
+        }, [loadStreakStatus, recoveryCode, syncBalance])
+    );
+
+    // Handle daily check-in with rewarded ad
+    const handleDailyCheckIn = async () => {
+        if (streakStatus?.todayCheckedIn) {
+            Alert.alert('Already Claimed', 'You have already claimed your daily reward today. Come back tomorrow!');
+            return;
+        }
+
+        setIsCheckingIn(true);
+
+        // TODO: Show rewarded ad here
+        // For now, simulate ad completion
+        // Replace this with actual rewarded ad logic when ad ID is provided
+
+        try {
+            // Simulate watching ad (replace with actual ad call)
+            // await showRewardedAd();
+
+            const result = await performDailyCheckIn();
+
+            if (result.success) {
+                addCredits(result.credits);
+
+                if (result.isStreakBonus) {
+                    Alert.alert(
+                        '🎉 Streak Bonus!',
+                        `Congratulations! You completed a 5-day streak and earned ${result.credits} bonus credits!`,
+                        [{ text: 'Awesome!' }]
+                    );
+                } else {
+                    Alert.alert(
+                        '✨ Daily Reward',
+                        `You earned ${result.credits} credit${result.credits > 1 ? 's' : ''}! Day ${result.newStreak} of 5.`,
+                        [{ text: 'Great!' }]
+                    );
                 }
-            ]
-        );
+
+                // Refresh streak status
+                await loadStreakStatus();
+            } else {
+                Alert.alert('Already Claimed', result.message);
+            }
+        } catch (error) {
+            console.error('Check-in error:', error);
+            Alert.alert('Error', 'Failed to complete check-in. Please try again.');
+        } finally {
+            setIsCheckingIn(false);
+        }
+    };
+
+    // State for purchase loading
+    const [isPurchasing, setIsPurchasing] = React.useState(false);
+
+    const handlePurchase = async (pack) => {
+        if (isPurchasing) return;
+
+        setIsPurchasing(true);
+        try {
+            const result = await PurchaseService.purchaseProduct(pack.id);
+
+            if (result.success) {
+                // Sync balance from server after purchase
+                await syncBalance();
+                Alert.alert(
+                    '🎉 Purchase Successful!',
+                    `${result.credits} credits have been added to your account!`
+                );
+            } else if (result.cancelled) {
+                // User cancelled - do nothing
+            } else {
+                Alert.alert('Purchase Failed', result.error || 'Something went wrong. Please try again.');
+            }
+        } catch (error) {
+            console.error('Purchase error:', error);
+            Alert.alert('Error', 'Purchase failed. Please try again.');
+        } finally {
+            setIsPurchasing(false);
+        }
+    };
+
+    const handleSubscription = async (plan) => {
+        if (isPurchasing) return;
+
+        setIsPurchasing(true);
+        try {
+            const result = await PurchaseService.purchaseProduct(plan.id);
+
+            if (result.success) {
+                // Sync balance from server after subscription
+                await syncBalance();
+                Alert.alert(
+                    '🎉 Subscription Active!',
+                    `You're now subscribed to ${plan.name}! ${result.credits} credits have been added.`
+                );
+            } else if (result.cancelled) {
+                // User cancelled - do nothing
+            } else {
+                Alert.alert('Subscription Failed', result.error || 'Something went wrong. Please try again.');
+            }
+        } catch (error) {
+            console.error('Subscription error:', error);
+            Alert.alert('Error', 'Subscription failed. Please try again.');
+        } finally {
+            setIsPurchasing(false);
+        }
+    };
+
+    const handleRestorePurchases = async () => {
+        if (isPurchasing) return;
+
+        setIsPurchasing(true);
+        try {
+            const result = await PurchaseService.restorePurchases();
+
+            if (result.success) {
+                await syncBalance();
+                if (result.totalCreditsRestored > 0) {
+                    Alert.alert(
+                        '✅ Purchases Restored!',
+                        `${result.totalCreditsRestored} credits have been restored to your account.`
+                    );
+                } else {
+                    Alert.alert('No Purchases Found', 'No previous purchases were found to restore.');
+                }
+            } else {
+                Alert.alert('Restore Failed', result.error || 'Could not restore purchases. Please try again.');
+            }
+        } catch (error) {
+            console.error('Restore error:', error);
+            Alert.alert('Error', 'Failed to restore purchases. Please try again.');
+        } finally {
+            setIsPurchasing(false);
+        }
     };
 
     return (
@@ -168,11 +340,172 @@ export default function CreditsScreen({ navigation }) {
                     </View>
                 </View>
 
+                {/* Daily Gifts Section */}
+                <View style={styles.section}>
+                    <View style={styles.dailyGiftsCard}>
+                        <View style={styles.dailyGiftsHeader}>
+                            <Text style={styles.dailyGiftsTitle}>Daily Gifts</Text>
+                            <Text style={styles.dailyGiftsSubtitle}>Check-in daily to get free Credits!</Text>
+                        </View>
+
+                        {streakStatus ? (
+                            <>
+                                <View style={styles.streakGrid}>
+                                    {STREAK_REWARDS.map((reward, index) => {
+                                        const dayNum = index + 1;
+                                        const isCompleted = streakStatus.currentStreak >= dayNum && streakStatus.todayCheckedIn;
+                                        const isToday = streakStatus.nextStreakDay === dayNum && !streakStatus.todayCheckedIn;
+                                        const isPast = streakStatus.currentStreak >= dayNum;
+                                        const isBonus = dayNum === 5;
+
+                                        return (
+                                            <View
+                                                key={dayNum}
+                                                style={[
+                                                    styles.streakDay,
+                                                    isBonus && styles.streakDayBonus,
+                                                    isCompleted && styles.streakDayCompleted,
+                                                    isToday && styles.streakDayToday,
+                                                ]}
+                                            >
+                                                {isCompleted ? (
+                                                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                                                ) : (
+                                                    <View style={styles.streakCreditsContainer}>
+                                                        <Ionicons name="flash" size={14} color={isBonus ? '#FFD700' : colors.primary} />
+                                                        <Text style={[
+                                                            styles.streakCredits,
+                                                            isBonus && styles.streakCreditsBonus
+                                                        ]}>
+                                                            {reward.credits}
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                                <Text style={[
+                                                    styles.streakDayLabel,
+                                                    isCompleted && styles.streakDayLabelCompleted
+                                                ]}>
+                                                    Day {dayNum}
+                                                </Text>
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+
+                                <TouchableOpacity
+                                    style={[
+                                        styles.checkInButton,
+                                        streakStatus.todayCheckedIn && styles.checkInButtonDisabled
+                                    ]}
+                                    onPress={handleDailyCheckIn}
+                                    activeOpacity={0.8}
+                                    disabled={streakStatus.todayCheckedIn || isCheckingIn}
+                                >
+                                    <LinearGradient
+                                        colors={streakStatus.todayCheckedIn ? ['#888', '#666'] : ['#4CAF50', '#2E7D32']}
+                                        style={styles.checkInButtonGradient}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                    >
+                                        {isCheckingIn ? (
+                                            <ActivityIndicator color="#fff" size="small" />
+                                        ) : (
+                                            <>
+                                                <Ionicons
+                                                    name={streakStatus.todayCheckedIn ? "checkmark-circle" : "play-circle"}
+                                                    size={20}
+                                                    color="#fff"
+                                                />
+                                                <Text style={styles.checkInButtonText}>
+                                                    {streakStatus.todayCheckedIn ? 'Claimed Today ✓' : 'Watch an Ad & Check-in'}
+                                                </Text>
+                                            </>
+                                        )}
+                                    </LinearGradient>
+                                </TouchableOpacity>
+                            </>
+                        ) : (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator color={colors.primary} />
+                            </View>
+                        )}
+                    </View>
+                </View>
+
+                {/* Recovery Code Section */}
+                {credits.recoveryCode && (
+                    <View style={styles.section}>
+                        <View style={styles.recoveryCard}>
+                            <View style={styles.recoveryHeader}>
+                                <Ionicons name="key-outline" size={24} color={colors.primary} />
+                                <Text style={styles.recoveryTitle}>Your Recovery Code</Text>
+                            </View>
+                            <Text style={styles.recoverySubtitle}>
+                                Save this code to recover your credits on a new device
+                            </Text>
+                            <View style={styles.recoveryCodeContainer}>
+                                <Text style={styles.recoveryCodeText}>{credits.recoveryCode}</Text>
+                            </View>
+                            <TouchableOpacity
+                                style={styles.copyButton}
+                                onPress={async () => {
+                                    await Clipboard.setStringAsync(credits.recoveryCode);
+                                    Alert.alert('Copied!', 'Recovery code copied to clipboard. Save it somewhere safe!');
+                                }}
+                            >
+                                <Ionicons name="copy-outline" size={18} color="#fff" />
+                                <Text style={styles.copyButtonText}>Copy Code</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
+
+                {/* Subscription Plans Section */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Subscription Plans</Text>
+                        <Text style={styles.sectionSubtitle}>Unlimited AI power</Text>
+                    </View>
+
+                    {SUBSCRIPTION_PLANS.map((plan) => (
+                        <TouchableOpacity
+                            key={plan.id}
+                            style={[
+                                styles.subscriptionCard,
+                                plan.recommended && styles.subscriptionCardRecommended
+                            ]}
+                            onPress={() => handleSubscription(plan)}
+                            activeOpacity={0.8}
+                        >
+                            {plan.recommended && (
+                                <View style={styles.subscriptionBadge}>
+                                    <Text style={styles.subscriptionBadgeText}>BEST VALUE</Text>
+                                </View>
+                            )}
+
+                            <View style={[
+                                styles.subscriptionMain,
+                                plan.recommended && { marginTop: 24 }
+                            ]}>
+                                <View style={styles.subscriptionInfo}>
+                                    <Text style={styles.subscriptionName}>{plan.name}</Text>
+                                    <Text style={styles.subscriptionPriceMain}>{plan.price}</Text>
+                                </View>
+
+                                <View style={styles.subscriptionPriceContainer}>
+                                    <Text style={styles.subscriptionPerWeek}>{plan.perWeek}</Text>
+                                    <Text style={styles.subscriptionPeriod}>per week</Text>
+                                </View>
+                            </View>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
                 {/* Credit Packs */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Buy Credits</Text>
-                        <Text style={styles.sectionSubtitle}>Top up your AI power</Text>
+                        <Text style={styles.sectionTitle}>One-Time Packs</Text>
+                        <Text style={styles.sectionSubtitle}>Buy credits as you need</Text>
                     </View>
 
                     {CREDIT_PACKS.map((pack) => (
@@ -227,11 +560,23 @@ export default function CreditsScreen({ navigation }) {
                     ))}
                 </View>
 
+                {/* Restore Purchases */}
+                <TouchableOpacity
+                    style={styles.restoreButton}
+                    onPress={handleRestorePurchases}
+                    disabled={isPurchasing}
+                >
+                    <Ionicons name="refresh-outline" size={18} color={colors.primary} />
+                    <Text style={styles.restoreButtonText}>
+                        {isPurchasing ? 'Processing...' : 'Restore Purchases'}
+                    </Text>
+                </TouchableOpacity>
+
                 {/* Footer Info */}
                 <View style={styles.footer}>
                     <Ionicons name="information-circle-outline" size={20} color={colors.textMuted} />
                     <Text style={styles.footerText}>
-                        Credits never expire. Frequent usage might require more credits.
+                        Credits never expire. Purchases are synced across devices.
                     </Text>
                 </View>
             </ScrollView>
@@ -432,5 +777,240 @@ const createStyles = (colors) => StyleSheet.create({
         fontSize: 12,
         textAlign: 'center',
         maxWidth: '80%',
+    },
+    // Subscription Card Styles
+    subscriptionCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 20,
+        padding: 20,
+        borderWidth: 2,
+        borderColor: '#FFD700',
+        position: 'relative',
+        overflow: 'hidden',
+    },
+    subscriptionBadge: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: '#FFD700',
+        paddingVertical: 6,
+        alignItems: 'center',
+    },
+    subscriptionBadgeText: {
+        color: '#000',
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 1,
+    },
+    subscriptionMain: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginTop: 24,
+    },
+    subscriptionIconContainer: {
+        marginRight: 16,
+    },
+    subscriptionIconGradient: {
+        width: 56,
+        height: 56,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    subscriptionInfo: {
+        flex: 1,
+    },
+    subscriptionName: {
+        color: colors.text,
+        fontSize: 16,
+        fontWeight: '600',
+        fontStyle: 'italic',
+    },
+    subscriptionPriceMain: {
+        color: colors.text,
+        fontSize: 18,
+        fontWeight: '700',
+        marginTop: 2,
+    },
+    subscriptionCardRecommended: {
+        borderColor: '#FFD700',
+        borderWidth: 2,
+    },
+    subscriptionPriceContainer: {
+        alignItems: 'flex-end',
+    },
+    subscriptionPerWeek: {
+        color: colors.text,
+        fontSize: 20,
+        fontWeight: '800',
+    },
+    subscriptionPeriod: {
+        color: colors.textMuted,
+        fontSize: 12,
+    },
+    // Daily Gifts Styles
+    dailyGiftsCard: {
+        backgroundColor: '#E8F5E9',
+        borderRadius: 20,
+        padding: 20,
+        borderWidth: 2,
+        borderColor: '#4CAF50',
+    },
+    dailyGiftsHeader: {
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    dailyGiftsTitle: {
+        color: '#2E7D32',
+        fontSize: 22,
+        fontWeight: '800',
+    },
+    dailyGiftsSubtitle: {
+        color: '#4CAF50',
+        fontSize: 13,
+        marginTop: 4,
+    },
+    streakGrid: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+    },
+    streakDay: {
+        width: (width - 80) / 5,
+        aspectRatio: 0.9,
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: '#C8E6C9',
+    },
+    streakDayBonus: {
+        borderColor: '#FFD700',
+        borderWidth: 2,
+        backgroundColor: '#FFFDE7',
+    },
+    streakDayCompleted: {
+        backgroundColor: '#C8E6C9',
+        borderColor: '#4CAF50',
+    },
+    streakDayToday: {
+        borderColor: '#4CAF50',
+        borderWidth: 2,
+    },
+    streakCreditsContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+    },
+    streakCredits: {
+        color: '#2E7D32',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    streakCreditsBonus: {
+        color: '#F57C00',
+        fontSize: 18,
+    },
+    streakDayLabel: {
+        color: '#666',
+        fontSize: 10,
+        marginTop: 4,
+        fontWeight: '600',
+    },
+    streakDayLabelCompleted: {
+        color: '#4CAF50',
+    },
+    checkInButton: {
+        marginTop: 4,
+    },
+    checkInButtonDisabled: {
+        opacity: 0.7,
+    },
+    checkInButtonGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 14,
+        borderRadius: 12,
+        gap: 8,
+    },
+    checkInButtonText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    loadingContainer: {
+        padding: 20,
+        alignItems: 'center',
+    },
+    // Recovery Code Styles
+    recoveryCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 16,
+        padding: 20,
+        borderWidth: 1.5,
+        borderColor: colors.primary,
+    },
+    recoveryHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 8,
+    },
+    recoveryTitle: {
+        color: colors.text,
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    recoverySubtitle: {
+        color: colors.textSecondary,
+        fontSize: 13,
+        marginBottom: 16,
+    },
+    recoveryCodeContainer: {
+        backgroundColor: colors.background,
+        borderRadius: 12,
+        padding: 16,
+        alignItems: 'center',
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
+    },
+    recoveryCodeText: {
+        color: colors.text,
+        fontSize: 24,
+        fontWeight: '800',
+        letterSpacing: 3,
+        fontFamily: 'monospace',
+    },
+    copyButton: {
+        backgroundColor: colors.primary,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        borderRadius: 10,
+        gap: 8,
+    },
+    copyButtonText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    // Restore button styles
+    restoreButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 16,
+        gap: 8,
+        marginTop: 8,
+    },
+    restoreButtonText: {
+        color: colors.primary,
+        fontSize: 15,
+        fontWeight: '600',
     },
 });
