@@ -21,6 +21,7 @@ import {
     STREAK_REWARDS
 } from '../services/DailyRewardsService';
 import PurchaseService, { PRODUCT_IDS, CREDITS_PER_PRODUCT } from '../services/PurchaseService';
+import { RewardedAd, RewardedAdEventType, adUnitIDs, areAdsEnabled } from '../services/AdService';
 
 const { width } = Dimensions.get('window');
 
@@ -159,6 +160,61 @@ export default function CreditsScreen({ navigation }) {
     const [rcPackages, setRcPackages] = useState({});
     const [pricesLoaded, setPricesLoaded] = useState(false);
 
+    // Rewarded Ad State
+    const [rewardedAd, setRewardedAd] = useState(null);
+    const [adLoaded, setAdLoaded] = useState(false);
+    const [isAdError, setIsAdError] = useState(false);
+
+    // Initialize Rewarded Ad
+    useEffect(() => {
+        if (!areAdsEnabled) return;
+
+        console.log('🎬 Initializing Rewarded Ad with ID:', adUnitIDs.rewarded);
+
+        const ad = RewardedAd.createForAdRequest(adUnitIDs.rewarded, {
+            requestNonPersonalizedAdsOnly: true,
+        });
+
+        const unsubscribeLoaded = ad.addAdEventListener(RewardedAdEventType.LOADED, () => {
+            console.log('✅ Rewarded Ad Loaded');
+            setAdLoaded(true);
+            setIsAdError(false);
+        });
+
+        const unsubscribeEarned = ad.addAdEventListener(
+            RewardedAdEventType.EARNED_REWARD,
+            (reward) => {
+                console.log('🎁 User earned reward:', reward);
+                // The actual credit adding logic is handled in handleDailyCheckIn
+                // after the ad is shown and closed successfully
+            }
+        );
+
+        const unsubscribeClosed = ad.addAdEventListener(RewardedAdEventType.CLOSED, () => {
+            console.log('🚪 Rewarded Ad Closed');
+            setAdLoaded(false);
+            // Preload next ad
+            ad.load();
+        });
+
+        const unsubscribeError = ad.addAdEventListener(RewardedAdEventType.ERROR, (error) => {
+            console.error('❌ Rewarded Ad Error:', error);
+            setIsAdError(true);
+            setAdLoaded(false);
+        });
+
+        // Load the ad
+        ad.load();
+        setRewardedAd(ad);
+
+        return () => {
+            unsubscribeLoaded();
+            unsubscribeEarned();
+            unsubscribeClosed();
+            unsubscribeError();
+        };
+    }, []);
+
     // Load streak status and init RevenueCat on mount and focus
     const loadStreakStatus = useCallback(async () => {
         const status = await getStreakStatus();
@@ -232,44 +288,85 @@ export default function CreditsScreen({ navigation }) {
             return;
         }
 
+        // Check if ads are enabled and loaded
+        if (areAdsEnabled && !adLoaded) {
+            if (isAdError) {
+                Alert.alert('Ad Error', 'Sorry, we couldn\'t load an ad right now. Please try again later.');
+                // Try to reload
+                rewardedAd?.load();
+            } else {
+                Alert.alert('Ad Loading', 'Please wait a moment while we load an ad for you...');
+                rewardedAd?.load();
+            }
+            return;
+        }
+
         setIsCheckingIn(true);
 
-        // TODO: Show rewarded ad here
-        // For now, simulate ad completion
-        // Replace this with actual rewarded ad logic when ad ID is provided
+        const performCheckIn = async () => {
+            try {
+                const result = await performDailyCheckIn();
 
-        try {
-            // Simulate watching ad (replace with actual ad call)
-            // await showRewardedAd();
+                if (result.success) {
+                    addCredits(result.credits);
 
-            const result = await performDailyCheckIn();
+                    if (result.isStreakBonus) {
+                        Alert.alert(
+                            '🎉 Streak Bonus!',
+                            `Congratulations! You completed a 5-day streak and earned ${result.credits} bonus credits!`,
+                            [{ text: 'Awesome!' }]
+                        );
+                    } else {
+                        Alert.alert(
+                            '✨ Daily Reward',
+                            `You earned ${result.credits} credit${result.credits > 1 ? 's' : ''}! Day ${result.newStreak} of 5.`,
+                            [{ text: 'Great!' }]
+                        );
+                    }
 
-            if (result.success) {
-                addCredits(result.credits);
-
-                if (result.isStreakBonus) {
-                    Alert.alert(
-                        '🎉 Streak Bonus!',
-                        `Congratulations! You completed a 5-day streak and earned ${result.credits} bonus credits!`,
-                        [{ text: 'Awesome!' }]
-                    );
+                    // Refresh streak status
+                    await loadStreakStatus();
                 } else {
-                    Alert.alert(
-                        '✨ Daily Reward',
-                        `You earned ${result.credits} credit${result.credits > 1 ? 's' : ''}! Day ${result.newStreak} of 5.`,
-                        [{ text: 'Great!' }]
-                    );
+                    Alert.alert('Already Claimed', result.message);
                 }
-
-                // Refresh streak status
-                await loadStreakStatus();
-            } else {
-                Alert.alert('Already Claimed', result.message);
+            } catch (error) {
+                console.error('Check-in error:', error);
+                Alert.alert('Error', 'Failed to complete check-in. Please try again.');
             }
-        } catch (error) {
-            console.error('Check-in error:', error);
-            Alert.alert('Error', 'Failed to complete check-in. Please try again.');
-        } finally {
+        };
+
+        if (areAdsEnabled && rewardedAd) {
+            try {
+                // Add one-time listener for the reward earned in this specific session
+                let rewardEarned = false;
+                const unsubscribe = rewardedAd.addAdEventListener(
+                    RewardedAdEventType.EARNED_REWARD,
+                    () => {
+                        rewardEarned = true;
+                    }
+                );
+
+                const unsubscribeClosed = rewardedAd.addAdEventListener(
+                    RewardedAdEventType.CLOSED,
+                    async () => {
+                        unsubscribe();
+                        unsubscribeClosed();
+                        if (rewardEarned) {
+                            await performCheckIn();
+                        }
+                        setIsCheckingIn(false);
+                    }
+                );
+
+                await rewardedAd.show();
+            } catch (error) {
+                console.error('Error showingRewardedAd:', error);
+                Alert.alert('Error', 'Failed to show ad. Please try again.');
+                setIsCheckingIn(false);
+            }
+        } else {
+            // If ads are disabled (e.g. Expo Go), allow check-in without ad
+            await performCheckIn();
             setIsCheckingIn(false);
         }
     };

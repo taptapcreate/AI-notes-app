@@ -18,6 +18,8 @@ import { useTheme } from '../context/ThemeContext';
 import { useHistory } from '../context/HistoryContext';
 import { useUser } from '../context/UserContext';
 import { generateReply, generateFollowUp } from '../services/api';
+import { BannerAd, BannerAdSize, InterstitialAd, AdEventType, adUnitIDs, areAdsEnabled } from '../services/AdService';
+import { useEffect } from 'react';
 
 const TONES = [
     { id: 'friendly', label: 'Friendly', icon: 'happy-outline' },
@@ -71,6 +73,39 @@ export default function ReplyScreen() {
     const [isRefineLoading, setIsRefineLoading] = useState(false);
     const [selectedReplyIndex, setSelectedReplyIndex] = useState(0);
 
+    // Interstitial Ad State
+    const [interstitial, setInterstitial] = useState(null);
+    const [interstitialLoaded, setInterstitialLoaded] = useState(false);
+
+    const { getCreditData } = useUser();
+    const { hasProSubscription } = getCreditData();
+
+    // Initialize Interstitial Ad
+    useEffect(() => {
+        if (!areAdsEnabled || hasProSubscription) return;
+
+        const interstitialAd = InterstitialAd.createForAdRequest(adUnitIDs.interstitial, {
+            requestNonPersonalizedAdsOnly: true,
+        });
+
+        const unsubscribeLoaded = interstitialAd.addAdEventListener(AdEventType.LOADED, () => {
+            setInterstitialLoaded(true);
+        });
+
+        const unsubscribeClosed = interstitialAd.addAdEventListener(AdEventType.CLOSED, () => {
+            setInterstitialLoaded(false);
+            interstitialAd.load(); // Preload next one
+        });
+
+        interstitialAd.load();
+        setInterstitial(interstitialAd);
+
+        return () => {
+            unsubscribeLoaded();
+            unsubscribeClosed();
+        };
+    }, [hasProSubscription]);
+
     const handleGenerate = async () => {
         if (!checkAvailability(1)) {
             Alert.alert(
@@ -105,6 +140,14 @@ export default function ReplyScreen() {
             // Save first reply to history
             if (result && result.length > 0) {
                 addReply(result[0], { tone: selectedTone, style: selectedStyle, format: selectedFormat });
+            }
+
+            // Show interstitial ad after generation for non-pro users
+            if (areAdsEnabled && !hasProSubscription && interstitialLoaded && interstitial) {
+                // Show ad with a small delay
+                setTimeout(() => {
+                    interstitial.show().catch(err => console.error('Error showing interstitial:', err));
+                }, 800);
             }
         } catch (error) {
             console.error('Error generating reply:', error);
@@ -401,6 +444,18 @@ export default function ReplyScreen() {
                                 </View>
                             ) : null}
                         </View>
+                    </View>
+                )}
+                {/* Banner Ad */}
+                {areAdsEnabled && (
+                    <View style={{ alignItems: 'center', marginTop: 20 }}>
+                        <BannerAd
+                            unitId={adUnitIDs.banner}
+                            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+                            requestOptions={{
+                                requestNonPersonalizedAdsOnly: true,
+                            }}
+                        />
                     </View>
                 )}
             </ScrollView>

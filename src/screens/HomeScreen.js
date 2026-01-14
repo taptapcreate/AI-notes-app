@@ -13,6 +13,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useHistory } from '../context/HistoryContext';
 import { useUser } from '../context/UserContext';
 import Markdown from 'react-native-markdown-display';
+import { BannerAd, BannerAdSize, adUnitIDs, areAdsEnabled } from '../services/AdService';
 
 const { width } = Dimensions.get('window');
 
@@ -221,6 +222,19 @@ export default function HomeScreen({ navigation }) {
                         </View>
                     </LinearGradient>
                 </View>
+
+                {/* Banner Ad */}
+                {areAdsEnabled && (
+                    <View style={{ alignItems: 'center', marginTop: 20 }}>
+                        <BannerAd
+                            unitId={adUnitIDs.banner}
+                            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+                            requestOptions={{
+                                requestNonPersonalizedAdsOnly: true,
+                            }}
+                        />
+                    </View>
+                )}
             </ScrollView>
         </View>
     );
