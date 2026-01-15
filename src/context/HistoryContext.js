@@ -93,6 +93,24 @@ export const HistoryProvider = ({ children }) => {
         }
     };
 
+    const clearAllNotes = async () => {
+        try {
+            setNotes([]);
+            await AsyncStorage.removeItem(NOTES_STORAGE_KEY);
+        } catch (error) {
+            console.error('Failed to clear notes:', error);
+        }
+    };
+
+    const clearAllReplies = async () => {
+        try {
+            setReplies([]);
+            await AsyncStorage.removeItem(REPLIES_STORAGE_KEY);
+        } catch (error) {
+            console.error('Failed to clear replies:', error);
+        }
+    };
+
     const clearAllHistory = async () => {
         try {
             setNotes([]);
@@ -130,7 +148,10 @@ export const HistoryProvider = ({ children }) => {
             addReply,
             deleteNote,
             deleteReply,
+            deleteReply,
             clearAllHistory,
+            clearAllNotes,
+            clearAllReplies,
             getStats,
             getNotesByFolder,
         }}>

@@ -58,7 +58,7 @@ const FORMATS = [
 export default function ReplyScreen() {
     const { colors } = useTheme();
     const navigation = useNavigation();
-    const { addReply } = useHistory();
+    const { addReply, deleteReply, clearAllReplies, replies: savedReplies = [] } = useHistory();
     const { useCredits, checkAvailability } = useUser();
     const [message, setMessage] = useState('');
     const [selectedTone, setSelectedTone] = useState('professional');
@@ -195,6 +195,28 @@ export default function ReplyScreen() {
         if (text) {
             setMessage(text);
         }
+    };
+
+    const handleClearAllHistory = () => {
+        Alert.alert(
+            'Clear History',
+            'Are you sure you want to delete all reply history?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete All', style: 'destructive', onPress: clearAllReplies }
+            ]
+        );
+    };
+
+    const handleDeleteReply = (id) => {
+        Alert.alert(
+            'Delete Reply',
+            'Are you sure you want to delete this reply?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => deleteReply(id) }
+            ]
+        );
     };
 
     const styles = createStyles(colors);
@@ -458,6 +480,50 @@ export default function ReplyScreen() {
                         />
                     </View>
                 )}
+
+                {/* Recent History Section */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.label}>Recent Replies</Text>
+                        {savedReplies.length > 0 && (
+                            <TouchableOpacity onPress={handleClearAllHistory}>
+                                <Text style={styles.clearAllText}>Clear All</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {savedReplies.length === 0 ? (
+                        <Text style={styles.emptyHistoryText}>No recent replies</Text>
+                    ) : (
+                        savedReplies.slice(0, 5).map((reply) => (
+                            <View key={reply.id} style={styles.historyCard}>
+                                <View style={styles.historyInfo}>
+                                    <Text style={styles.historyDate}>
+                                        {new Date(reply.createdAt).toLocaleDateString()}
+                                    </Text>
+                                    <View style={styles.historyChips}>
+                                        <View style={styles.historyTag}>
+                                            <Text style={styles.historyTagText}>{reply.tone}</Text>
+                                        </View>
+                                        <View style={styles.historyTag}>
+                                            <Text style={styles.historyTagText}>{reply.format}</Text>
+                                        </View>
+                                    </View>
+                                    <Text style={styles.historyPreview} numberOfLines={2}>
+                                        {reply.content}
+                                    </Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.deleteBtn}
+                                    onPress={() => handleDeleteReply(reply.id)}
+                                >
+                                    <Ionicons name="trash-outline" size={20} color={colors.error} />
+                                </TouchableOpacity>
+                            </View>
+                        ))
+                    )}
+                </View>
+
             </ScrollView>
         </View>
     );
@@ -769,5 +835,61 @@ const createStyles = (colors) => StyleSheet.create({
         color: colors.accent,
         fontSize: 13,
         fontWeight: '500',
+    },
+    // History Section Styles
+    clearAllText: {
+        color: colors.error,
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    emptyHistoryText: {
+        color: colors.textMuted,
+        fontStyle: 'italic',
+        textAlign: 'center',
+        marginVertical: 10,
+    },
+    historyCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
+    },
+    historyInfo: {
+        flex: 1,
+        marginRight: 10,
+    },
+    historyDate: {
+        color: colors.textMuted,
+        fontSize: 11,
+        marginBottom: 4,
+    },
+    historyChips: {
+        flexDirection: 'row',
+        gap: 6,
+        marginBottom: 6,
+    },
+    historyTag: {
+        backgroundColor: `${colors.primary}15`,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    historyTagText: {
+        color: colors.primary,
+        fontSize: 10,
+        fontWeight: '600',
+        textTransform: 'capitalize',
+    },
+    historyPreview: {
+        color: colors.text,
+        fontSize: 13,
+    },
+    deleteBtn: {
+        padding: 8,
     },
 });

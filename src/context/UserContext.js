@@ -9,6 +9,7 @@ const UserContext = createContext();
 const PURCHASED_CREDITS_CACHE_KEY = '@purchased_credits_cache';
 const FREE_CREDITS_CACHE_KEY = '@free_credits_cache';
 const FREE_DAILY_LIMIT = 3;
+const ONBOARDING_SHOWN_KEY = '@onboarding_shown_v1';
 
 export const UserProvider = ({ children }) => {
     const [purchasedCredits, setPurchasedCredits] = useState(0);
@@ -18,14 +19,54 @@ export const UserProvider = ({ children }) => {
     const [isOnline, setIsOnline] = useState(true);
     const [needsRecovery, setNeedsRecovery] = useState(false);
 
+    // Onboarding State
+    const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
+    const [isOnboardingLoading, setIsOnboardingLoading] = useState(true);
+
     // Subscription state
     const [hasProSubscription, setHasProSubscription] = useState(false);
     const [subscriptionType, setSubscriptionType] = useState(null);
 
+    // App Configuration (Remote)
+    const [appConfig, setAppConfig] = useState(null);
+
     // Initialize on mount
     useEffect(() => {
         initializeCredits();
+        initializeConfig();
+        checkOnboardingStatus();
     }, []);
+
+    const checkOnboardingStatus = async () => {
+        try {
+            const result = await AsyncStorage.getItem(ONBOARDING_SHOWN_KEY);
+            if (result === 'true') {
+                setHasSeenOnboarding(true);
+            }
+        } catch (error) {
+            console.log('Error checking onboarding:', error);
+        } finally {
+            setIsOnboardingLoading(false);
+        }
+    };
+
+    const completeOnboarding = async () => {
+        try {
+            await AsyncStorage.setItem(ONBOARDING_SHOWN_KEY, 'true');
+            setHasSeenOnboarding(true);
+        } catch (error) {
+            console.error('Failed to save onboarding status:', error);
+        }
+    };
+
+    const initializeConfig = async () => {
+        // Dynamic import to avoid circular dependency if any (ConfigService is clean though)
+        const { fetchAppConfig } = await import('../services/ConfigService');
+        const config = await fetchAppConfig();
+        if (config) {
+            setAppConfig(config);
+        }
+    };
 
     const initializeCredits = async () => {
         try {
@@ -211,10 +252,11 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    // Recover account - restores BOTH credit types from server
+    // Recover account - merges credits if different code, or switches if no current
     const recoverAccount = async (code) => {
         try {
-            const result = await CreditSyncService.recoverAccount(code);
+            // Pass current recovery code for merge functionality
+            const result = await CreditSyncService.recoverAccount(code, recoveryCode);
 
             if (result.success) {
                 setRecoveryCode(result.recoveryCode);
@@ -222,7 +264,13 @@ export const UserProvider = ({ children }) => {
                 setFreeCreditsRemaining(result.freeCreditsRemaining ?? 3);
                 setNeedsRecovery(false);
                 await cacheCredits(result.credits, result.freeCreditsRemaining ?? 3);
-                return { success: true, message: result.message };
+
+                // Return success for UI feedback
+                return {
+                    success: true,
+                    message: result.message,
+                    recoveryCode: result.recoveryCode // Return new code for checks
+                };
             }
             return { success: false, error: result.error };
         } catch (error) {
@@ -251,6 +299,8 @@ export const UserProvider = ({ children }) => {
             // Subscription info
             hasProSubscription,
             subscriptionType,
+            // App Config
+            appConfig,
         };
     };
 
@@ -269,6 +319,11 @@ export const UserProvider = ({ children }) => {
             syncBalance,
             recoverAccount,
             initializeCredits,
+            initializeCredits,
+            appConfig,
+            hasSeenOnboarding,
+            isOnboardingLoading,
+            completeOnboarding
         }}>
             {children}
         </UserContext.Provider>

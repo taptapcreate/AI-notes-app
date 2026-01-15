@@ -199,13 +199,18 @@ export const useCredits = async (amount) => {
 
 /**
  * Recover account with recovery code (for new device)
+ * If currentCode is provided and different, credits will be MERGED
+ * and the old account will be deleted
  */
-export const recoverAccount = async (recoveryCode) => {
+export const recoverAccount = async (recoveryCode, currentCode = null) => {
     try {
         const response = await fetch(`${API_BASE_URL}/credits/recover`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: recoveryCode }),
+            body: JSON.stringify({
+                code: recoveryCode,
+                currentCode: currentCode
+            }),
         });
 
         if (!response.ok) {
@@ -218,7 +223,7 @@ export const recoverAccount = async (recoveryCode) => {
 
         const data = await response.json();
 
-        // Store the recovery code locally
+        // Store the recovery code locally (could be merged or switched)
         await setRecoveryCode(data.recoveryCode);
 
         return {

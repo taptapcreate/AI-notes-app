@@ -3,9 +3,10 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 
 import HomeScreen from './src/screens/HomeScreen';
 import NotesScreen from './src/screens/NotesScreen';
@@ -13,11 +14,16 @@ import ReplyScreen from './src/screens/ReplyScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import PaymentScreen from './src/screens/PaymentScreen';
 import CreditsScreen from './src/screens/CreditsScreen';
+import IntroScreen from './src/screens/IntroScreen';
+import WalkthroughScreen from './src/screens/WalkthroughScreen';
+import FAQScreen from './src/screens/FAQScreen';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { HistoryProvider } from './src/context/HistoryContext';
 import { FoldersProvider } from './src/context/FoldersContext';
-import { UserProvider } from './src/context/UserContext';
+import { UserProvider, useUser } from './src/context/UserContext';
 import AdService, { initializeAds as initAds } from './src/services/AdService';
+import NotificationService from './src/services/NotificationService';
+import AppContent from './src/components/AppContent';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -116,6 +122,7 @@ function TabNavigator() {
 
 function MainApp() {
   const { colors, isDark } = useTheme();
+  const { hasSeenOnboarding, isOnboardingLoading } = useUser();
 
   const navTheme = {
     dark: isDark,
@@ -147,10 +154,15 @@ function MainApp() {
     },
   };
 
+  if (isOnboardingLoading) {
+    return null; // or a Splash Screen component if needed
+  }
+
   return (
     <NavigationContainer theme={navTheme}>
       <StatusBar style={colors.statusBar} />
       <Stack.Navigator
+        initialRouteName={hasSeenOnboarding ? "MainTabs" : "Intro"}
         screenOptions={{
           headerStyle: {
             backgroundColor: colors.background,
@@ -164,9 +176,27 @@ function MainApp() {
         }}
       >
         <Stack.Screen
+          name="Intro"
+          component={IntroScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Walkthrough"
+          component={WalkthroughScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="MainTabs"
           component={TabNavigator}
           options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="FAQ"
+          component={FAQScreen}
+          options={{
+            headerTitle: 'Help Center',
+            headerBackTitleVisible: false,
+          }}
         />
         <Stack.Screen
           name="Payment"
@@ -179,20 +209,68 @@ function MainApp() {
         <Stack.Screen
           name="Credits"
           component={CreditsScreen}
-          options={{
-            headerTitle: 'Buy Credits',
+          options={({ navigation }) => ({
+            headerTitle: 'Buy Credits & Subscriptions',
             presentation: 'modal',
-          }}
+            headerBackTitleVisible: false,
+            headerLeft: () => (
+              <TouchableOpacity
+                style={{ paddingRight: 16 }}
+                onPress={() => navigation.goBack()}
+              >
+                <Ionicons name="close-circle" size={28} color={colors.primary} />
+              </TouchableOpacity>
+            ),
+          })}
         />
       </Stack.Navigator>
-    </NavigationContainer>
+    </NavigationContainer >
   );
 }
 
 export default function App() {
   React.useEffect(() => {
-    // Initialize Ads safely after mount
-    AdService.initializeAds();
+    const setupApp = async () => {
+      // Request ATT permission on iOS 14+ before showing ads
+      if (Platform.OS === 'ios') {
+        try {
+          const { status } = await requestTrackingPermissionsAsync();
+          console.log('ATT permission status:', status);
+        } catch (e) {
+          console.log('ATT request error:', e);
+        }
+      }
+
+      // Initialize Ads after ATT prompt
+      AdService.initializeAds();
+
+      // Register for push notifications
+      try {
+        const pushToken = await NotificationService.registerForPushNotificationsAsync();
+        if (pushToken) {
+          await NotificationService.registerTokenWithServer(pushToken);
+          console.log('✅ Push notifications registered');
+        }
+      } catch (e) {
+        console.log('Push notification setup error:', e);
+      }
+    };
+
+    setupApp();
+
+    // Set up notification listeners
+    const cleanup = NotificationService.addNotificationListeners(
+      (notification) => {
+        // Handle notification received while app is open
+        console.log('Notification received:', notification);
+      },
+      (response) => {
+        // Handle notification tap - can navigate to specific screen
+        console.log('Notification tapped:', response);
+      }
+    );
+
+    return cleanup;
   }, []);
 
   return (
@@ -201,7 +279,9 @@ export default function App() {
         <UserProvider>
           <FoldersProvider>
             <HistoryProvider>
-              <MainApp />
+              <AppContent>
+                <MainApp />
+              </AppContent>
             </HistoryProvider>
           </FoldersProvider>
         </UserProvider>

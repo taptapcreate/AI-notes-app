@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -74,38 +74,18 @@ const LANGUAGES = [
 export default function NotesScreen() {
     const { colors } = useTheme();
     const navigation = useNavigation();
-    const { addNote } = useHistory();
+    const { addNote, deleteNote, clearAllNotes, notes = [] } = useHistory();
     const { folders } = useFolders();
-    const { useCredits, checkAvailability } = useUser();
-    const [inputType, setInputType] = useState('text');
-    const [textInput, setTextInput] = useState('');
-    const [linkInput, setLinkInput] = useState('');
-    const [selectedImage, setSelectedImage] = useState(null);
-    const [recording, setRecording] = useState(null);
-    const [isRecording, setIsRecording] = useState(false);
-    const [audioUri, setAudioUri] = useState(null);
-    const [selectedPdf, setSelectedPdf] = useState(null);
-    const [generatedNotes, setGeneratedNotes] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-
-    const [noteLength, setNoteLength] = useState('standard');
-    const [format, setFormat] = useState('bullet');
-    const [tone, setTone] = useState('professional');
-    const [language, setLanguage] = useState('English');
-    const [lastContent, setLastContent] = useState(null);
-
-    // Follow-up state
-    const [followUpQuestion, setFollowUpQuestion] = useState('');
-    const [followUpResponse, setFollowUpResponse] = useState('');
-    const [isFollowUpLoading, setIsFollowUpLoading] = useState(false);
+    const { useCredits, checkAvailability, getCreditData, hasProSubscription } = useUser();
 
     // Interstitial Ad State
     const [interstitial, setInterstitial] = useState(null);
     const [interstitialLoaded, setInterstitialLoaded] = useState(false);
 
-    const { hasProSubscription } = getCreditData();
+    // const { hasProSubscription } = getCreditData();
 
-    // Initialize Interstitial Ad
+    // Initialize Interstitial Ad - DISABLED TO FIX CRASH
+    /*
     useEffect(() => {
         if (!areAdsEnabled || hasProSubscription) return;
 
@@ -130,9 +110,33 @@ export default function NotesScreen() {
             unsubscribeClosed();
         };
     }, [hasProSubscription]);
+    */
 
     // Folder state
     const [selectedFolder, setSelectedFolder] = useState('general');
+
+    // Input state
+    const [inputType, setInputType] = useState('text');
+    const [textInput, setTextInput] = useState('');
+    const [selectedImage, setSelectedImage] = useState(null);
+    const [audioUri, setAudioUri] = useState(null);
+    const [recording, setRecording] = useState(null);
+    const [isRecording, setIsRecording] = useState(false);
+    const [selectedPdf, setSelectedPdf] = useState(null);
+    const [linkInput, setLinkInput] = useState('');
+
+    // Output state
+    const [generatedNotes, setGeneratedNotes] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [lastContent, setLastContent] = useState(null);
+    const [suggestions, setSuggestions] = useState([]);
+
+    // Settings state
+    const [noteLength, setNoteLength] = useState('standard');
+    const [format, setFormat] = useState('bullet');
+    const [tone, setTone] = useState('professional');
+    const [language, setLanguage] = useState('English');
+
 
     const pickImage = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -389,6 +393,28 @@ export default function NotesScreen() {
         setGeneratedNotes('');
         setFollowUpQuestion('');
         setFollowUpResponse('');
+    };
+
+    const handleClearAllHistory = () => {
+        Alert.alert(
+            'Clear History',
+            'Are you sure you want to delete all note history?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete All', style: 'destructive', onPress: clearAllNotes }
+            ]
+        );
+    };
+
+    const handleDeleteNote = (id) => {
+        Alert.alert(
+            'Delete Note',
+            'Are you sure you want to delete this note?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => deleteNote(id) }
+            ]
+        );
     };
 
     const styles = createStyles(colors);
@@ -907,6 +933,41 @@ export default function NotesScreen() {
                         />
                     </View>
                 )}
+                {/* Recent History Section */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Recent Notes</Text>
+                        {notes.length > 0 && (
+                            <TouchableOpacity onPress={handleClearAllHistory}>
+                                <Text style={styles.clearAllText}>Clear All</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {notes.length === 0 ? (
+                        <Text style={styles.emptyHistoryText}>No recent notes</Text>
+                    ) : (
+                        notes.slice(0, 5).map((note) => (
+                            <View key={note.id} style={styles.historyCard}>
+                                <View style={styles.historyInfo}>
+                                    <Text style={styles.historyDate}>
+                                        {new Date(note.createdAt).toLocaleDateString()}
+                                    </Text>
+                                    <Text style={styles.historyPreview} numberOfLines={2}>
+                                        {note.content}
+                                    </Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.deleteBtn}
+                                    onPress={() => handleDeleteNote(note.id)}
+                                >
+                                    <Ionicons name="trash-outline" size={20} color={colors.error} />
+                                </TouchableOpacity>
+                            </View>
+                        ))
+                    )}
+                </View>
+
             </ScrollView >
         </View >
     );
@@ -1367,5 +1428,50 @@ const createStyles = (colors) => StyleSheet.create({
         color: colors.secondary,
         fontSize: 13,
         fontWeight: '500',
+    },
+    // History Section Styles
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    clearAllText: {
+        color: colors.error,
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    emptyHistoryText: {
+        color: colors.textMuted,
+        fontStyle: 'italic',
+        textAlign: 'center',
+        marginVertical: 10,
+    },
+    historyCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
+    },
+    historyInfo: {
+        flex: 1,
+        marginRight: 10,
+    },
+    historyDate: {
+        color: colors.textMuted,
+        fontSize: 11,
+        marginBottom: 4,
+    },
+    historyPreview: {
+        color: colors.text,
+        fontSize: 13,
+    },
+    deleteBtn: {
+        padding: 8,
     },
 });

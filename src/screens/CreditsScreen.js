@@ -175,6 +175,9 @@ export default function CreditsScreen({ navigation }) {
     const [adLoaded, setAdLoaded] = useState(false);
     const [isAdError, setIsAdError] = useState(false);
 
+    // Tab toggle state: 'subscriptions' | 'credits' | 'ads'
+    const [activeTab, setActiveTab] = useState('subscriptions');
+
     // Initialize Rewarded Ad
     useEffect(() => {
         // TEMPORARILY DISABLED - Ads causing crashes
@@ -537,6 +540,31 @@ export default function CreditsScreen({ navigation }) {
                     <Ionicons name={credits.hasProSubscription ? "star" : "wallet-outline"} size={40} color="#fff" style={styles.walletIcon} />
                 </LinearGradient>
 
+                {/* Toggle Tabs */}
+                <View style={styles.toggleContainer}>
+                    <TouchableOpacity
+                        style={[styles.toggleTab, activeTab === 'subscriptions' && styles.toggleTabActive]}
+                        onPress={() => setActiveTab('subscriptions')}
+                    >
+                        <Ionicons name="infinite" size={16} color={activeTab === 'subscriptions' ? '#fff' : colors.textMuted} />
+                        <Text style={[styles.toggleTabText, activeTab === 'subscriptions' && styles.toggleTabTextActive]}>Subscriptions</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.toggleTab, activeTab === 'credits' && styles.toggleTabActive]}
+                        onPress={() => setActiveTab('credits')}
+                    >
+                        <Ionicons name="flash" size={16} color={activeTab === 'credits' ? '#fff' : colors.textMuted} />
+                        <Text style={[styles.toggleTabText, activeTab === 'credits' && styles.toggleTabTextActive]}>Credits</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.toggleTab, activeTab === 'ads' && styles.toggleTabActive]}
+                        onPress={() => setActiveTab('ads')}
+                    >
+                        <Ionicons name="play-circle" size={16} color={activeTab === 'ads' ? '#fff' : colors.textMuted} />
+                        <Text style={[styles.toggleTabText, activeTab === 'ads' && styles.toggleTabTextActive]}>Watch Ads</Text>
+                    </TouchableOpacity>
+                </View>
+
                 {/* Info Section */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>How it works</Text>
@@ -671,201 +699,223 @@ export default function CreditsScreen({ navigation }) {
                     </View>
                 )}
 
-                {/* Subscription Plans Section */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>
-                            {credits.hasProSubscription ? 'Your Plan' : 'Subscription Plans'}
-                        </Text>
-                        <Text style={styles.sectionSubtitle}>
-                            {credits.hasProSubscription ? 'Unlimited AI power active' : 'Unlimited AI power'}
-                        </Text>
-                    </View>
+                {/* Subscription Plans Section - Only when subscriptions tab */}
+                {activeTab === 'subscriptions' && (
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>
+                                {credits.hasProSubscription ? 'Your Plan' : 'Subscription Plans'}
+                            </Text>
+                            <Text style={styles.sectionSubtitle}>
+                                {credits.hasProSubscription ? 'Unlimited AI power active' : 'Unlimited AI power'}
+                            </Text>
+                        </View>
 
-                    {SUBSCRIPTION_PLANS.map((plan) => {
-                        // Check if this is the current plan
-                        const isCurrentPlan = credits.hasProSubscription &&
-                            ((credits.subscriptionType === 'monthly' && plan.id.includes('monthly')) ||
-                                (credits.subscriptionType === 'weekly' && plan.id.includes('weekly')));
+                        {SUBSCRIPTION_PLANS.map((plan) => {
+                            // Check if this is the current plan
+                            const isCurrentPlan = credits.hasProSubscription &&
+                                ((credits.subscriptionType === 'monthly' && plan.id.includes('monthly')) ||
+                                    (credits.subscriptionType === 'weekly' && plan.id.includes('weekly')));
 
-                        // For subscribers: determine if this is upgrade or downgrade
-                        const isUpgrade = credits.hasProSubscription &&
-                            credits.subscriptionType === 'weekly' && plan.id.includes('monthly');
-                        const isDowngrade = credits.hasProSubscription &&
-                            credits.subscriptionType === 'monthly' && plan.id.includes('weekly');
+                            // For subscribers: determine if this is upgrade or downgrade
+                            const isUpgrade = credits.hasProSubscription &&
+                                credits.subscriptionType === 'weekly' && plan.id.includes('monthly');
+                            const isDowngrade = credits.hasProSubscription &&
+                                credits.subscriptionType === 'monthly' && plan.id.includes('weekly');
 
-                        const handlePlanPress = () => {
-                            if (isCurrentPlan) {
-                                // Already on this plan - do nothing or show manage in store
-                                Alert.alert(
-                                    'Current Plan',
-                                    'You are already subscribed to this plan. Manage in App Store.',
-                                    [
-                                        { text: 'Cancel', style: 'cancel' },
-                                        { text: 'Manage in Store', onPress: () => openManageSubscriptions() }
-                                    ]
-                                );
-                            } else if (isDowngrade) {
-                                // Downgrade - redirect to App Store
-                                Alert.alert(
-                                    'Downgrade Plan',
-                                    'To downgrade to Weekly, you need to manage your subscription in the App Store. Your current plan will continue until it expires.',
-                                    [
-                                        { text: 'Cancel', style: 'cancel' },
-                                        { text: 'Open App Store', onPress: () => openManageSubscriptions() }
-                                    ]
-                                );
-                            } else if (isUpgrade) {
-                                // Upgrade - immediate purchase
-                                Alert.alert(
-                                    'Upgrade to Monthly',
-                                    `Upgrade to Monthly plan for ${getPrice(plan.id, plan.price)}${plan.period}?\n\n• New plan starts immediately\n• Apple handles proration automatically`,
-                                    [
-                                        { text: 'Cancel', style: 'cancel' },
-                                        { text: 'Upgrade Now', onPress: () => handleSubscription(plan) }
-                                    ]
-                                );
-                            } else {
-                                // Not subscribed - normal purchase
-                                handleSubscription(plan);
-                            }
-                        };
+                            const handlePlanPress = () => {
+                                if (isCurrentPlan) {
+                                    // Already on this plan - do nothing or show manage in store
+                                    Alert.alert(
+                                        'Current Plan',
+                                        'You are already subscribed to this plan. Manage in App Store.',
+                                        [
+                                            { text: 'Cancel', style: 'cancel' },
+                                            { text: 'Manage in Store', onPress: () => openManageSubscriptions() }
+                                        ]
+                                    );
+                                } else if (isDowngrade) {
+                                    // Downgrade - redirect to App Store
+                                    Alert.alert(
+                                        'Downgrade Plan',
+                                        'To downgrade to Weekly, you need to manage your subscription in the App Store. Your current plan will continue until it expires.',
+                                        [
+                                            { text: 'Cancel', style: 'cancel' },
+                                            { text: 'Open App Store', onPress: () => openManageSubscriptions() }
+                                        ]
+                                    );
+                                } else if (isUpgrade) {
+                                    // Upgrade - immediate purchase
+                                    Alert.alert(
+                                        'Upgrade to Monthly',
+                                        `Upgrade to Monthly plan for ${getPrice(plan.id, plan.price)}${plan.period}?\n\n• New plan starts immediately\n• Apple handles proration automatically`,
+                                        [
+                                            { text: 'Cancel', style: 'cancel' },
+                                            { text: 'Upgrade Now', onPress: () => handleSubscription(plan) }
+                                        ]
+                                    );
+                                } else {
+                                    // Not subscribed - normal purchase
+                                    handleSubscription(plan);
+                                }
+                            };
 
-                        return (
+                            return (
+                                <TouchableOpacity
+                                    key={plan.id}
+                                    style={[
+                                        styles.subscriptionCard,
+                                        isCurrentPlan && styles.subscriptionCardCurrent,
+                                        plan.recommended && !isCurrentPlan && styles.subscriptionCardRecommended
+                                    ]}
+                                    onPress={handlePlanPress}
+                                    activeOpacity={0.8}
+                                >
+                                    {/* Current Plan Badge */}
+                                    {isCurrentPlan && (
+                                        <View style={styles.currentPlanBadge}>
+                                            <Ionicons name="checkmark-circle" size={14} color="#fff" />
+                                            <Text style={styles.currentPlanBadgeText}>CURRENT PLAN</Text>
+                                        </View>
+                                    )}
+
+                                    {/* Best Value Badge (only if not current) */}
+                                    {plan.recommended && !isCurrentPlan && (
+                                        <View style={styles.subscriptionBadge}>
+                                            <Text style={styles.subscriptionBadgeText}>BEST VALUE</Text>
+                                        </View>
+                                    )}
+
+                                    <View style={[
+                                        styles.subscriptionMain,
+                                        (isCurrentPlan || plan.recommended) && { marginTop: 24 }
+                                    ]}>
+                                        <View style={styles.subscriptionInfo}>
+                                            <Text style={[
+                                                styles.subscriptionName,
+                                                isCurrentPlan && { color: colors.primary }
+                                            ]}>{plan.name}</Text>
+                                            <Text style={styles.subscriptionPriceMain}>{getPrice(plan.id, plan.price)}</Text>
+                                        </View>
+
+                                        <View style={styles.subscriptionPriceContainer}>
+                                            {isUpgrade && (
+                                                <View style={styles.upgradeHint}>
+                                                    <Ionicons name="arrow-up-circle" size={16} color="#10B981" />
+                                                    <Text style={styles.upgradeHintText}>Upgrade</Text>
+                                                </View>
+                                            )}
+                                            {isDowngrade && (
+                                                <View style={styles.downgradeHint}>
+                                                    <Ionicons name="open-outline" size={16} color={colors.primary} />
+                                                    <Text style={styles.downgradeHintText}>Manage</Text>
+                                                </View>
+                                            )}
+                                            {!isUpgrade && !isDowngrade && (
+                                                <>
+                                                    <Text style={styles.subscriptionPerWeek}>{plan.perWeek}</Text>
+                                                    <Text style={styles.subscriptionPeriod}>per week</Text>
+                                                </>
+                                            )}
+                                        </View>
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+
+                        {/* Manage in Store button for subscribers */}
+                        {credits.hasProSubscription && (
                             <TouchableOpacity
-                                key={plan.id}
+                                style={styles.manageStoreButton}
+                                onPress={() => openManageSubscriptions()}
+                            >
+                                <Ionicons name="open-outline" size={16} color={colors.primary} />
+                                <Text style={[styles.manageStoreText, { color: colors.primary }]}>
+                                    Manage Subscription in {Platform.OS === 'ios' ? 'App Store' : 'Play Store'}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
+
+                {/* Credit Packs - Only when credits tab */}
+                {activeTab === 'credits' && (
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>One-Time Packs</Text>
+                            <Text style={styles.sectionSubtitle}>Buy credits as you need</Text>
+                        </View>
+
+                        {CREDIT_PACKS.map((pack) => (
+                            <TouchableOpacity
+                                key={pack.id}
                                 style={[
-                                    styles.subscriptionCard,
-                                    isCurrentPlan && styles.subscriptionCardCurrent,
-                                    plan.recommended && !isCurrentPlan && styles.subscriptionCardRecommended
+                                    styles.packCard,
+                                    pack.popular && styles.packCardPopular,
+                                    pack.bestValue && styles.packCardBestValue,
                                 ]}
-                                onPress={handlePlanPress}
+                                onPress={() => handlePurchase(pack)}
                                 activeOpacity={0.8}
                             >
-                                {/* Current Plan Badge */}
-                                {isCurrentPlan && (
-                                    <View style={styles.currentPlanBadge}>
-                                        <Ionicons name="checkmark-circle" size={14} color="#fff" />
-                                        <Text style={styles.currentPlanBadgeText}>CURRENT PLAN</Text>
+                                {pack.popular && (
+                                    <View style={styles.badge}>
+                                        <Text style={styles.badgeText}>POPULAR</Text>
+                                    </View>
+                                )}
+                                {pack.bestValue && (
+                                    <View style={[styles.badge, styles.bestValueBadge]}>
+                                        <Text style={styles.badgeText}>BEST VALUE</Text>
                                     </View>
                                 )}
 
-                                {/* Best Value Badge (only if not current) */}
-                                {plan.recommended && !isCurrentPlan && (
-                                    <View style={styles.subscriptionBadge}>
-                                        <Text style={styles.subscriptionBadgeText}>BEST VALUE</Text>
-                                    </View>
-                                )}
-
-                                <View style={[
-                                    styles.subscriptionMain,
-                                    (isCurrentPlan || plan.recommended) && { marginTop: 24 }
-                                ]}>
-                                    <View style={styles.subscriptionInfo}>
-                                        <Text style={[
-                                            styles.subscriptionName,
-                                            isCurrentPlan && { color: colors.primary }
-                                        ]}>{plan.name}</Text>
-                                        <Text style={styles.subscriptionPriceMain}>{getPrice(plan.id, plan.price)}</Text>
+                                <View style={styles.packMain}>
+                                    <View style={styles.packIconContainer}>
+                                        <LinearGradient
+                                            colors={colors.gradientPrimary}
+                                            style={styles.packIconGradient}
+                                        >
+                                            <Ionicons name={pack.icon} size={24} color="#fff" />
+                                        </LinearGradient>
                                     </View>
 
-                                    <View style={styles.subscriptionPriceContainer}>
-                                        {isUpgrade && (
-                                            <View style={styles.upgradeHint}>
-                                                <Ionicons name="arrow-up-circle" size={16} color="#10B981" />
-                                                <Text style={styles.upgradeHintText}>Upgrade</Text>
-                                            </View>
-                                        )}
-                                        {isDowngrade && (
-                                            <View style={styles.downgradeHint}>
-                                                <Ionicons name="open-outline" size={16} color={colors.primary} />
-                                                <Text style={styles.downgradeHintText}>Manage</Text>
-                                            </View>
-                                        )}
-                                        {!isUpgrade && !isDowngrade && (
-                                            <>
-                                                <Text style={styles.subscriptionPerWeek}>{plan.perWeek}</Text>
-                                                <Text style={styles.subscriptionPeriod}>per week</Text>
-                                            </>
-                                        )}
+                                    <View style={styles.packInfo}>
+                                        <Text style={styles.packName}>{pack.name}</Text>
+                                        <View style={styles.creditRow}>
+                                            <Text style={styles.packCredits}>{pack.credits} Credits</Text>
+                                            {pack.bonus && (
+                                                <Text style={styles.bonusText}>{pack.bonus}</Text>
+                                            )}
+                                        </View>
+                                        <Text style={styles.packDescription}>{pack.description}</Text>
+                                    </View>
+
+                                    <View style={styles.packPriceContainer}>
+                                        <Text style={styles.packPrice}>{getPrice(pack.id, pack.price)}</Text>
+                                        <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
                                     </View>
                                 </View>
                             </TouchableOpacity>
-                        );
-                    })}
-
-                    {/* Manage in Store button for subscribers */}
-                    {credits.hasProSubscription && (
-                        <TouchableOpacity
-                            style={styles.manageStoreButton}
-                            onPress={() => openManageSubscriptions()}
-                        >
-                            <Ionicons name="open-outline" size={16} color={colors.primary} />
-                            <Text style={[styles.manageStoreText, { color: colors.primary }]}>
-                                Manage Subscription in {Platform.OS === 'ios' ? 'App Store' : 'Play Store'}
-                            </Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
-
-                {/* Credit Packs */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>One-Time Packs</Text>
-                        <Text style={styles.sectionSubtitle}>Buy credits as you need</Text>
+                        ))}
                     </View>
+                )}
 
-                    {CREDIT_PACKS.map((pack) => (
-                        <TouchableOpacity
-                            key={pack.id}
-                            style={[
-                                styles.packCard,
-                                pack.popular && styles.packCardPopular,
-                                pack.bestValue && styles.packCardBestValue,
-                            ]}
-                            onPress={() => handlePurchase(pack)}
-                            activeOpacity={0.8}
-                        >
-                            {pack.popular && (
-                                <View style={styles.badge}>
-                                    <Text style={styles.badgeText}>POPULAR</Text>
-                                </View>
-                            )}
-                            {pack.bestValue && (
-                                <View style={[styles.badge, styles.bestValueBadge]}>
-                                    <Text style={styles.badgeText}>BEST VALUE</Text>
-                                </View>
-                            )}
-
-                            <View style={styles.packMain}>
-                                <View style={styles.packIconContainer}>
-                                    <LinearGradient
-                                        colors={colors.gradientPrimary}
-                                        style={styles.packIconGradient}
-                                    >
-                                        <Ionicons name={pack.icon} size={24} color="#fff" />
-                                    </LinearGradient>
-                                </View>
-
-                                <View style={styles.packInfo}>
-                                    <Text style={styles.packName}>{pack.name}</Text>
-                                    <View style={styles.creditRow}>
-                                        <Text style={styles.packCredits}>{pack.credits} Credits</Text>
-                                        {pack.bonus && (
-                                            <Text style={styles.bonusText}>{pack.bonus}</Text>
-                                        )}
-                                    </View>
-                                    <Text style={styles.packDescription}>{pack.description}</Text>
-                                </View>
-
-                                <View style={styles.packPriceContainer}>
-                                    <Text style={styles.packPrice}>{getPrice(pack.id, pack.price)}</Text>
-                                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-                                </View>
-                            </View>
-                        </TouchableOpacity>
-                    ))}
-                </View>
+                {/* Watch Ads Section - Only when ads tab */}
+                {activeTab === 'ads' && (
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>Watch Ads for Credits</Text>
+                            <Text style={styles.sectionSubtitle}>Earn free credits by watching ads</Text>
+                        </View>
+                        <View style={styles.adCard}>
+                            <Ionicons name="play-circle-outline" size={56} color={colors.primary} />
+                            <Text style={styles.adCardTitle}>Watch a Video Ad</Text>
+                            <Text style={styles.adCardDesc}>Earn 5 credits for each ad you watch</Text>
+                            <TouchableOpacity style={[styles.adButton, { backgroundColor: colors.primary }]} disabled>
+                                <Text style={styles.adButtonText}>Coming Soon</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
 
                 {/* Restore Purchases */}
                 <TouchableOpacity
@@ -1027,6 +1077,65 @@ const createStyles = (colors) => StyleSheet.create({
     },
     walletIcon: {
         opacity: 0.9,
+    },
+    // Toggle Tabs
+    toggleContainer: {
+        flexDirection: 'row',
+        backgroundColor: colors.surface,
+        borderRadius: 12,
+        padding: 4,
+        marginBottom: 24,
+    },
+    toggleTab: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 8,
+        borderRadius: 10,
+        gap: 6,
+    },
+    toggleTabActive: {
+        backgroundColor: colors.primary,
+    },
+    toggleTabText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: colors.textMuted,
+    },
+    toggleTabTextActive: {
+        color: '#fff',
+    },
+    // Ad Card
+    adCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 16,
+        padding: 32,
+        alignItems: 'center',
+        gap: 12,
+    },
+    adCardTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: colors.text,
+        marginTop: 8,
+    },
+    adCardDesc: {
+        fontSize: 14,
+        color: colors.textMuted,
+        textAlign: 'center',
+    },
+    adButton: {
+        marginTop: 16,
+        paddingVertical: 14,
+        paddingHorizontal: 32,
+        borderRadius: 12,
+    },
+    adButtonText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '700',
     },
     section: {
         marginBottom: 32,

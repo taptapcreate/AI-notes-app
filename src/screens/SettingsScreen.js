@@ -9,12 +9,18 @@ import {
     Linking,
     Alert,
     TextInput,
+    Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../context/ThemeContext';
 import { useUser } from '../context/UserContext';
+import { useHistory } from '../context/HistoryContext';
+
+// App Version
+const APP_VERSION = '1.0.0';
+const BUILD_NUMBER = '2024.1';
 
 export default function SettingsScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
@@ -37,25 +43,55 @@ export default function SettingsScreen({ navigation }) {
 
     // Recover account with code
     const handleRecover = async () => {
-        if (!recoveryInput.trim()) {
+        const code = recoveryInput.trim();
+        if (!code) {
             Alert.alert('Error', 'Please enter a recovery code');
             return;
         }
 
-        setIsRecovering(true);
-        try {
-            const result = await recoverAccount(recoveryInput.trim().toUpperCase());
-            if (result.success) {
-                Alert.alert('✅ Success!', 'Your purchased credits have been restored!');
-                setShowRecoveryInput(false);
-                setRecoveryInput('');
-            } else {
-                Alert.alert('❌ Invalid Code', result.error || 'Please check and try again.');
+        const previousCode = credits.recoveryCode;
+
+        const performRecovery = async () => {
+            setIsRecovering(true);
+            try {
+                const result = await recoverAccount(code.toUpperCase());
+                if (result.success) {
+                    const title = result.message.includes('Already using') ? 'Info' : '✅ Success!';
+                    // Show previous code in success message for safety
+                    const safetyMessage = previousCode && previousCode !== result.recoveryCode
+                        ? `\n\n📝 IMPORTANT: Your PREVIOUS code was:\n${previousCode}\n\nSave this if you need to switch back!`
+                        : '';
+
+                    Alert.alert(title, (result.message || 'Account restored!') + safetyMessage);
+                    setShowRecoveryInput(false);
+                    setRecoveryInput('');
+                } else {
+                    Alert.alert('❌ Invalid Code', result.error || 'Please check and try again.');
+                }
+            } catch (error) {
+                Alert.alert('Error', 'Failed to recover. Please try again.');
+            } finally {
+                setIsRecovering(false);
             }
-        } catch (error) {
-            Alert.alert('Error', 'Failed to recover. Please try again.');
-        } finally {
-            setIsRecovering(false);
+        };
+
+        // If user has credits, warn them before switching
+        if (credits.purchasedCredits > 0) {
+            Alert.alert(
+                '⚠️ Warning: Account Switch',
+                `You are about to switch accounts. Your current ${credits.purchasedCredits} credits will NOT be transferred.\n\nBut don't worry! You can switch back to this account anytime using your current code:\n\n${credits.recoveryCode}`,
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Switch Account',
+                        style: 'destructive',
+                        onPress: performRecovery
+                    }
+                ]
+            );
+        } else {
+            // No credits to lose, switch immediately
+            performRecovery();
         }
     };
 
@@ -68,23 +104,95 @@ export default function SettingsScreen({ navigation }) {
     };
 
     const handleRateApp = () => {
-        Alert.alert('Rate App', 'This will open the app store (coming soon!)');
+        if (credits.appConfig?.rateUrl) {
+            Linking.openURL(credits.appConfig.rateUrl);
+        } else {
+            // Platform specific logic for rating would go here
+            Alert.alert('Rate App', 'Thank you for your support!');
+        }
     };
 
     const handleShareApp = () => {
-        Alert.alert('Share App', 'Share functionality coming soon!');
+        if (credits.appConfig?.shareUrl) {
+            Linking.openURL(credits.appConfig.shareUrl);
+        } else {
+            Alert.alert('Share App', 'Share functionality coming soon!');
+        }
+    };
+
+    const handleMoreApps = () => {
+        if (credits.appConfig?.moreAppsUrl) {
+            Linking.openURL(credits.appConfig.moreAppsUrl);
+            return;
+        }
+
+        const url = Platform.select({
+            ios: 'https://apps.apple.com/developer/pursharth-zutshi/id1856952308',
+            android: 'https://play.google.com/store/apps/dev?id=6039030544696005344'
+        });
+        Linking.openURL(url);
     };
 
     const handleContact = () => {
-        Linking.openURL('mailto:support@example.com');
+        // Updated email
+        Linking.openURL('mailto:taptapcreate43@gmail.com');
     };
 
     const handlePrivacy = () => {
-        Alert.alert('Privacy Policy', 'Privacy policy coming soon!');
+        Linking.openURL('https://ai-notes-website.vercel.app/privacy');
+    };
+
+    const handleTerms = () => {
+        Linking.openURL('https://ai-notes-website.vercel.app/terms');
+    };
+
+    const handleFAQ = () => {
+        navigation.navigate('FAQ');
+    };
+
+    const handleWalkthrough = () => {
+        navigation.navigate('Walkthrough', { fromSettings: true });
+    };
+
+    const { clearAllHistory } = useHistory();
+
+    const handleResetApp = () => {
+        // First Confirmation
+        Alert.alert(
+            'Delete All Data?',
+            'This will permanently delete all your generated notes and reply history. Your credits and account balance will be preserved.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete All',
+                    style: 'destructive',
+                    onPress: () => {
+                        // Second Confirmation
+                        setTimeout(() => {
+                            Alert.alert(
+                                'Final Confirmation',
+                                'Are you absolutely sure? This action cannot be undone.',
+                                [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    {
+                                        text: 'Yes, Delete Everything',
+                                        style: 'destructive',
+                                        onPress: async () => {
+                                            await clearAllHistory();
+                                            Alert.alert('Success', 'All history has been cleared.');
+                                        }
+                                    }
+                                ]
+                            );
+                        }, 200);
+                    }
+                }
+            ]
+        );
     };
 
     const SettingItem = ({ icon, iconColor, title, subtitle, onPress, rightComponent }) => (
-        <TouchableOpacity style={styles.settingItem} onPress={onPress} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.settingItem} onPress={onPress} activeOpacity={0.7} disabled={!onPress && !rightComponent}>
             <View style={[styles.settingIcon, { backgroundColor: `${iconColor}20` }]}>
                 <Ionicons name={icon} size={22} color={iconColor} />
             </View>
@@ -111,7 +219,44 @@ export default function SettingsScreen({ navigation }) {
                     <Text style={styles.profileSubtitle}>Write & Reply</Text>
                 </View>
 
-                {/* Appearance Section */}
+                {/* Wallet / Status */}
+                <View style={styles.section}>
+                    <View style={styles.walletCard}>
+                        <LinearGradient
+                            colors={isDark ? ['#312e81', '#4338ca'] : ['#e0e7ff', '#c7d2fe']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.walletBackground}
+                        />
+
+                        <View style={styles.walletHeader}>
+                            <View>
+                                <Text style={styles.walletLabel}>CURRENT PLAN</Text>
+                                <Text style={styles.walletValue}>
+                                    {credits.hasProSubscription ? 'PRO MEMBER' : 'FREE USER'}
+                                </Text>
+                            </View>
+                            <View style={styles.creditBadge}>
+                                <Ionicons name="flash" size={14} color="#F59E0B" />
+                                <Text style={styles.creditText}>
+                                    {credits.hasProSubscription ? '∞' : credits.purchasedCredits + credits.remainingFree}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.walletActions}>
+                            <TouchableOpacity
+                                style={[styles.walletButtonFull, { backgroundColor: colors.primary }]}
+                                onPress={handleCredits}
+                            >
+                                <Ionicons name="cart-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                                <Text style={[styles.walletButtonText, { color: '#fff' }]}>Buy Subscription / Credits</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Appearance */}
                 <View style={styles.section}>
                     <Text style={styles.sectionHeader}>APPEARANCE</Text>
                     <View style={styles.card}>
@@ -132,26 +277,40 @@ export default function SettingsScreen({ navigation }) {
                     </View>
                 </View>
 
-                {/* General Section */}
+                {/* Help & Support */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionHeader}>GENERAL</Text>
+                    <Text style={styles.sectionHeader}>HELP & SUPPORT</Text>
                     <View style={styles.card}>
                         <SettingItem
-                            icon="flash"
-                            iconColor="#10B981"
-                            title="Buy Credits"
-                            subtitle="Top up your AI power"
-                            onPress={handleCredits}
+                            icon="help-buoy"
+                            iconColor="#3B82F6"
+                            title="FAQ & Help Center"
+                            subtitle="Common questions answered"
+                            onPress={handleFAQ}
                         />
                         <View style={styles.divider} />
                         <SettingItem
-                            icon="diamond"
+                            icon="school"
                             iconColor="#8B5CF6"
-                            title="Upgrade to Pro"
-                            subtitle="Unlock unlimited features"
-                            onPress={handleUpgrade}
+                            title="App Walkthrough"
+                            subtitle="See what you can do"
+                            onPress={handleWalkthrough}
                         />
                         <View style={styles.divider} />
+                        <SettingItem
+                            icon="mail"
+                            iconColor="#EC4899"
+                            title="Contact Us"
+                            subtitle="taptapcreate43@gmail.com"
+                            onPress={handleContact}
+                        />
+                    </View>
+                </View>
+
+                {/* Share & Rate */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionHeader}>COMMUNITY</Text>
+                    <View style={styles.card}>
                         <SettingItem
                             icon="star"
                             iconColor="#F59E0B"
@@ -169,111 +328,133 @@ export default function SettingsScreen({ navigation }) {
                         />
                         <View style={styles.divider} />
                         <SettingItem
-                            icon="mail"
-                            iconColor="#3B82F6"
-                            title="Contact Us"
-                            subtitle="Get help or send feedback"
-                            onPress={handleContact}
+                            icon="apps"
+                            iconColor="#6366F1"
+                            title="More Apps"
+                            subtitle="Check out our other apps"
+                            onPress={handleMoreApps}
                         />
                     </View>
                 </View>
 
-                {/* Recovery Code Section - Prominent */}
+                {/* About Section */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionHeader}>ACCOUNT RECOVERY</Text>
-                    <View style={styles.recoveryCard}>
-                        <View style={styles.recoveryIconContainer}>
-                            <Ionicons name="key" size={32} color={colors.primary} />
-                        </View>
-                        <Text style={styles.recoveryTitle}>Your Recovery Code</Text>
-                        <Text style={styles.recoveryDescription}>
-                            Save this code to recover your purchased credits if you switch devices or reinstall the app. Free daily credits are device-specific.
-                        </Text>
-
-                        {credits.recoveryCode ? (
-                            <>
-                                <View style={styles.codeBox}>
-                                    <Text style={styles.codeText}>{credits.recoveryCode}</Text>
-                                </View>
-                                <TouchableOpacity style={styles.copyButton} onPress={handleCopyCode}>
-                                    <Ionicons name="copy-outline" size={18} color="#fff" />
-                                    <Text style={styles.copyButtonText}>Copy Code</Text>
-                                </TouchableOpacity>
-                            </>
-                        ) : (
-                            <Text style={styles.loadingText}>Loading...</Text>
-                        )}
-
-                        <View style={styles.recoveryDivider} />
-
-                        {!showRecoveryInput ? (
-                            <TouchableOpacity
-                                style={styles.recoverLink}
-                                onPress={() => setShowRecoveryInput(true)}
-                            >
-                                <Ionicons name="download-outline" size={18} color={colors.primary} />
-                                <Text style={styles.recoverLinkText}>Have a code? Recover account</Text>
-                            </TouchableOpacity>
-                        ) : (
-                            <View style={styles.recoverInputContainer}>
-                                <TextInput
-                                    style={styles.recoverInput}
-                                    placeholder="Enter recovery code"
-                                    placeholderTextColor={colors.textMuted}
-                                    value={recoveryInput}
-                                    onChangeText={setRecoveryInput}
-                                    autoCapitalize="characters"
-                                    maxLength={10}
-                                />
-                                <View style={styles.recoverButtonRow}>
-                                    <TouchableOpacity
-                                        style={styles.recoverCancelButton}
-                                        onPress={() => {
-                                            setShowRecoveryInput(false);
-                                            setRecoveryInput('');
-                                        }}
-                                    >
-                                        <Text style={styles.recoverCancelText}>Cancel</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[styles.recoverButton, isRecovering && { opacity: 0.6 }]}
-                                        onPress={handleRecover}
-                                        disabled={isRecovering}
-                                    >
-                                        <Text style={styles.recoverButtonText}>
-                                            {isRecovering ? 'Recovering...' : 'Recover'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        )}
-                    </View>
-                </View>
-
-                {/* Legal Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionHeader}>LEGAL</Text>
+                    <Text style={styles.sectionHeader}>ABOUT</Text>
                     <View style={styles.card}>
                         <SettingItem
+                            icon="information-circle"
+                            iconColor={colors.textMuted}
+                            title="About AI Notes"
+                            subtitle="Your AI-powered writing companion. Generate notes, craft replies, and boost productivity."
+                            onPress={() => { }} // Could open a modal or website
+                            rightComponent={<View />} // Hide chevron
+                        />
+                        <View style={styles.divider} />
+                        <SettingItem
                             icon="shield-checkmark"
-                            iconColor="#8B5CF6"
+                            iconColor={colors.textMuted}
                             title="Privacy Policy"
                             onPress={handlePrivacy}
                         />
                         <View style={styles.divider} />
                         <SettingItem
                             icon="document-text"
-                            iconColor="#EC4899"
+                            iconColor={colors.textMuted}
                             title="Terms of Service"
-                            onPress={handlePrivacy}
+                            onPress={handleTerms}
                         />
                     </View>
                 </View>
 
-                {/* App Info */}
-                <View style={styles.appInfo}>
-                    <Text style={styles.appVersion}>Version 1.0.0</Text>
-                    <Text style={styles.appCopyright}>Made with ❤️</Text>
+                {/* Danger Zone */}
+                <View style={styles.section}>
+                    <Text style={[styles.sectionHeader, { color: colors.error }]}>DANGER ZONE</Text>
+                    <View style={[styles.card, { borderColor: `${colors.error}40` }]}>
+                        <SettingItem
+                            icon="trash"
+                            iconColor={colors.error}
+                            title="Delete All Data"
+                            subtitle="Clear notes & reply history"
+                            onPress={handleResetApp}
+                        />
+                    </View>
+                </View>
+
+                {/* Account Recovery - PROMINENT SECTION */}
+                <View style={styles.section}>
+                    <Text style={[styles.sectionHeader, { color: colors.primary }]}>💾 CREDIT RECOVERY</Text>
+                    <View style={[styles.recoveryCard, { borderColor: colors.primary, borderWidth: 1.5 }]}>
+                        <View style={styles.headerRow}>
+                            <Ionicons name="key" size={24} color={colors.primary} />
+                            <Text style={styles.cardTitle}>Your Recovery Code</Text>
+                        </View>
+                        <Text style={styles.cardDesc}>
+                            Save this code to transfer credits to a new device. Enter it on your new device to restore your balance.
+                        </Text>
+                        {credits.recoveryCode ? (
+                            <TouchableOpacity style={[styles.codeBox, { borderColor: colors.primary }]} onPress={handleCopyCode}>
+                                <Text style={[styles.codeText, { fontSize: 20, letterSpacing: 2 }]}>{credits.recoveryCode}</Text>
+                                <Ionicons name="copy-outline" size={20} color={colors.primary} style={{ marginLeft: 10 }} />
+                            </TouchableOpacity>
+                        ) : (
+                            <Text style={styles.loadingText}>Loading...</Text>
+                        )}
+                    </View>
+
+                    {/* Restore from Old Device - Prominent Card */}
+                    <View style={[styles.restoreCard, { backgroundColor: `${colors.warning}10`, borderColor: colors.warning }]}>
+                        <View style={styles.headerRow}>
+                            <Ionicons name="swap-horizontal" size={24} color={colors.warning} />
+                            <Text style={[styles.cardTitle, { color: colors.warning }]}>Switch Device?</Text>
+                        </View>
+                        <Text style={styles.cardDesc}>
+                            Have credits on another device? Enter your old Recovery Code to transfer them here.
+                        </Text>
+                        <TouchableOpacity
+                            style={[styles.restoreOldButton, { backgroundColor: colors.warning }]}
+                            onPress={() => setShowRecoveryInput(!showRecoveryInput)}
+                        >
+                            <Ionicons name={showRecoveryInput ? "close" : "download-outline"} size={18} color="#fff" />
+                            <Text style={styles.restoreOldButtonText}>
+                                {showRecoveryInput ? 'Cancel' : 'Restore from Old ID'}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {showRecoveryInput && (
+                            <View style={[styles.inputWrapper, { marginTop: 16 }]}>
+                                <TextInput
+                                    style={styles.recoverInput}
+                                    placeholder="ENTER CODE"
+                                    placeholderTextColor={colors.textMuted}
+                                    value={recoveryInput}
+                                    onChangeText={setRecoveryInput}
+                                    autoCapitalize="characters"
+                                    maxLength={10}
+                                />
+                                <TouchableOpacity
+                                    style={[styles.recoverButton, (!recoveryInput || isRecovering) && { opacity: 0.5 }]}
+                                    onPress={handleRecover}
+                                    disabled={!recoveryInput || isRecovering}
+                                >
+                                    <Text style={styles.recoverButtonText}>
+                                        {isRecovering ? '...' : 'Go'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+                </View>
+
+                {/* Version Footer */}
+                <View style={styles.versionContainer}>
+                    <View style={[styles.versionBox, { borderColor: colors.glassBorder, backgroundColor: colors.surface }]}>
+                        <Text style={[styles.versionText, { color: colors.textMuted }]}>
+                            Version {APP_VERSION}
+                        </Text>
+                        <Text style={[styles.copyrightText, { color: colors.textMuted }]}>
+                            © Taptapcreate
+                        </Text>
+                    </View>
                 </View>
 
             </ScrollView>
@@ -365,78 +546,83 @@ const createStyles = (colors) => StyleSheet.create({
         backgroundColor: colors.glassBorder,
         marginLeft: 74,
     },
-    appInfo: {
-        alignItems: 'center',
-        marginTop: 16,
-        paddingVertical: 20,
-    },
-    appVersion: {
-        color: colors.textMuted,
-        fontSize: 14,
-        marginBottom: 4,
-    },
-    appCopyright: {
-        color: colors.textMuted,
-        fontSize: 14,
-    },
-    // Recovery Section Styles
+    // Recovery
     recoveryCard: {
         backgroundColor: colors.surface,
-        borderRadius: 20,
-        padding: 24,
-        alignItems: 'center',
+        borderRadius: 16,
+        padding: 20,
         borderWidth: 1,
         borderColor: colors.glassBorder,
     },
-    recoveryIconContainer: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: `${colors.primary}20`,
-        justifyContent: 'center',
+    headerRow: {
+        flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 16,
-    },
-    recoveryTitle: {
-        color: colors.text,
-        fontSize: 20,
-        fontWeight: '700',
+        gap: 12,
         marginBottom: 8,
     },
-    recoveryDescription: {
+    cardTitle: {
+        color: colors.text,
+        fontSize: 17,
+        fontWeight: '700',
+    },
+    cardDesc: {
         color: colors.textMuted,
         fontSize: 14,
-        textAlign: 'center',
+        marginBottom: 16,
         lineHeight: 20,
-        marginBottom: 20,
     },
     codeBox: {
         backgroundColor: colors.background,
-        paddingVertical: 16,
-        paddingHorizontal: 32,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
         borderRadius: 12,
-        borderWidth: 2,
-        borderColor: colors.primary,
-        borderStyle: 'dashed',
-        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     codeText: {
-        color: colors.text,
-        fontSize: 28,
-        fontWeight: '800',
-        letterSpacing: 4,
-        fontFamily: 'monospace',
+        color: colors.primary,
+        fontSize: 20,
+        fontWeight: '700',
+        letterSpacing: 2,
+        fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
     },
-    copyButton: {
-        backgroundColor: colors.primary,
-        flexDirection: 'row',
+    recoveryButton: {
         alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 12,
-        gap: 8,
+        padding: 10
     },
-    copyButtonText: {
+    recoveryButtonLabel: {
+        color: colors.primary,
+        fontWeight: '600',
+        fontSize: 15
+    },
+    inputWrapper: {
+        flexDirection: 'row',
+        gap: 10,
+        marginTop: 12
+    },
+    recoverInput: {
+        flex: 1,
+        backgroundColor: colors.surface,
+        color: colors.text,
+        fontSize: 16,
+        fontWeight: '600',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
+        letterSpacing: 1,
+    },
+    recoverButton: {
+        backgroundColor: colors.primary,
+        paddingHorizontal: 20,
+        justifyContent: 'center',
+        borderRadius: 12,
+    },
+    recoverButtonText: {
         color: '#fff',
         fontSize: 15,
         fontWeight: '600',
@@ -445,67 +631,133 @@ const createStyles = (colors) => StyleSheet.create({
         color: colors.textMuted,
         fontSize: 16,
     },
-    recoveryDivider: {
-        height: 1,
-        backgroundColor: colors.glassBorder,
-        width: '100%',
-        marginVertical: 20,
+    restoreCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 16,
+        padding: 20,
+        marginTop: 16,
+        borderWidth: 1.5,
     },
-    recoverLink: {
+    restoreOldButton: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: 8,
-    },
-    recoverLinkText: {
-        color: colors.primary,
-        fontSize: 15,
-        fontWeight: '600',
-    },
-    recoverInputContainer: {
-        width: '100%',
-    },
-    recoverInput: {
-        backgroundColor: colors.background,
-        color: colors.text,
-        fontSize: 18,
-        fontWeight: '600',
-        textAlign: 'center',
         paddingVertical: 14,
-        paddingHorizontal: 16,
         borderRadius: 12,
-        borderWidth: 1,
-        borderColor: colors.glassBorder,
-        marginBottom: 12,
-        letterSpacing: 2,
+        marginTop: 8,
     },
-    recoverButtonRow: {
+    restoreOldButtonText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    // Wallet
+    walletCard: {
+        marginHorizontal: 4,
+        borderRadius: 20,
+        padding: 20,
+        overflow: 'hidden',
+        position: 'relative',
+        height: 160,
+        justifyContent: 'space-between',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 5,
+    },
+    walletBackground: {
+        ...StyleSheet.absoluteFillObject,
+        opacity: 0.8,
+    },
+    walletHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+    },
+    walletLabel: {
+        color: colors.textSecondary,
+        fontSize: 12,
+        fontWeight: '700',
+        letterSpacing: 1,
+        marginBottom: 4,
+        opacity: 0.8,
+    },
+    walletValue: {
+        color: colors.text,
+        fontSize: 22,
+        fontWeight: '800',
+        letterSpacing: 0.5,
+    },
+    creditBadge: {
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    creditText: {
+        color: '#000',
+        fontWeight: '800',
+        fontSize: 14,
+    },
+    walletActions: {
         flexDirection: 'row',
         gap: 12,
     },
-    recoverCancelButton: {
+    walletButton: {
         flex: 1,
-        backgroundColor: colors.background,
         paddingVertical: 12,
-        borderRadius: 10,
+        borderRadius: 12,
         alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    walletButtonFull: {
+        flex: 1,
+        flexDirection: 'row',
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    walletButtonText: {
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    // Version Footer
+    versionContainer: {
+        alignItems: 'center',
+        marginTop: 20,
+        marginBottom: 20,
+    },
+    versionBox: {
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 30,
         borderWidth: 1,
-        borderColor: colors.glassBorder,
-    },
-    recoverCancelText: {
-        color: colors.textMuted,
-        fontSize: 15,
-        fontWeight: '600',
-    },
-    recoverButton: {
-        flex: 1,
-        backgroundColor: colors.primary,
-        paddingVertical: 12,
-        borderRadius: 10,
         alignItems: 'center',
     },
-    recoverButtonText: {
-        color: '#fff',
-        fontSize: 15,
+    versionText: {
+        fontSize: 13,
         fontWeight: '600',
+        marginBottom: 2,
     },
+    copyrightText: {
+        fontSize: 11,
+    }
 });
