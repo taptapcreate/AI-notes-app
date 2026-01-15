@@ -125,15 +125,22 @@ export default function HomeScreen({ navigation }) {
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 0 }}
                     >
-                        <View style={styles.creditsInfo}>
-                            <Ionicons name="flash" size={20} color="#fff" />
-                            <Text style={styles.creditsTitle}>
-                                {credits.remainingFree > 0 ? 'Daily Free Credits' : 'Credits Available'}
-                            </Text>
+                        <View style={{ flex: 1 }}>
+                            <View style={styles.creditDisplayRow}>
+                                <Ionicons name="flash" size={16} color="#fff" style={{ opacity: 0.9 }} />
+                                <Text style={styles.creditLabelText}>Daily Free:</Text>
+                                <Text style={styles.creditValueMain}>{credits.remainingFree}</Text>
+                            </View>
+                            {(credits.purchasedCredits > 0) && (
+                                <View style={[styles.creditDisplayRow, { marginTop: 4 }]}>
+                                    <Ionicons name="wallet" size={16} color="#fff" style={{ opacity: 0.9 }} />
+                                    <Text style={styles.creditLabelText}>Purchased:</Text>
+                                    <Text style={styles.creditValueSub}>{credits.purchasedCredits}</Text>
+                                </View>
+                            )}
                         </View>
-                        <View style={styles.creditsValueContainer}>
-                            <Text style={styles.creditsValue}>{credits.totalAvailable}</Text>
-                            <Ionicons name="add-circle" size={24} color="#fff" />
+                        <View style={styles.creditsAction}>
+                            <Ionicons name="add-circle" size={32} color="#fff" />
                         </View>
                     </LinearGradient>
                 </TouchableOpacity>
@@ -265,25 +272,28 @@ const createStyles = (colors) => StyleSheet.create({
         justifyContent: 'space-between',
         padding: 16,
     },
-    creditsInfo: {
+    creditDisplayRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
     },
-    creditsTitle: {
-        color: '#fff',
+    creditLabelText: {
+        color: 'rgba(255,255,255,0.9)',
         fontSize: 15,
-        fontWeight: '600',
+        fontWeight: '500',
     },
-    creditsValueContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    creditsValue: {
+    creditValueMain: {
         color: '#fff',
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '800',
+    },
+    creditValueSub: {
+        color: 'rgba(255,255,255,0.9)',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    creditsAction: {
+        marginLeft: 16,
     },
     greetingSection: {
         alignItems: 'center',

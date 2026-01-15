@@ -5,14 +5,14 @@ import PurchaseService from '../services/PurchaseService';
 
 const UserContext = createContext();
 
-// Free credits are LOCAL (device-based)
-const FREE_DAILY_LIMIT = 5;
-const FREE_CREDITS_KEY = '@free_daily_credits';
-const FREE_CREDITS_DATE_KEY = '@free_credits_date';
+// Cache keys for offline fallback
+const PURCHASED_CREDITS_CACHE_KEY = '@purchased_credits_cache';
+const FREE_CREDITS_CACHE_KEY = '@free_credits_cache';
+const FREE_DAILY_LIMIT = 3;
 
 export const UserProvider = ({ children }) => {
     const [purchasedCredits, setPurchasedCredits] = useState(0);
-    const [freeCreditsRemaining, setFreeCreditsRemaining] = useState(5);
+    const [freeCreditsRemaining, setFreeCreditsRemaining] = useState(null);
     const [recoveryCode, setRecoveryCode] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isOnline, setIsOnline] = useState(true);
@@ -20,95 +20,71 @@ export const UserProvider = ({ children }) => {
 
     // Subscription state
     const [hasProSubscription, setHasProSubscription] = useState(false);
-    const [subscriptionType, setSubscriptionType] = useState(null); // 'weekly' or 'monthly'
+    const [subscriptionType, setSubscriptionType] = useState(null);
 
     // Initialize on mount
     useEffect(() => {
         initializeCredits();
     }, []);
 
-    // Load/reset LOCAL free credits (device-based)
-    const loadLocalFreeCredits = async () => {
-        try {
-            const savedDate = await AsyncStorage.getItem(FREE_CREDITS_DATE_KEY);
-            const today = new Date().toDateString();
-
-            if (savedDate === today) {
-                // Same day - load saved free credits
-                const savedCredits = await AsyncStorage.getItem(FREE_CREDITS_KEY);
-                setFreeCreditsRemaining(savedCredits ? parseInt(savedCredits) : FREE_DAILY_LIMIT);
-            } else {
-                // New day - reset to full free credits
-                setFreeCreditsRemaining(FREE_DAILY_LIMIT);
-                await AsyncStorage.setItem(FREE_CREDITS_KEY, FREE_DAILY_LIMIT.toString());
-                await AsyncStorage.setItem(FREE_CREDITS_DATE_KEY, today);
-            }
-        } catch (error) {
-            console.error('Error loading free credits:', error);
-            setFreeCreditsRemaining(FREE_DAILY_LIMIT);
-        }
-    };
-
-    // Save free credits locally
-    const saveLocalFreeCredits = async (amount) => {
-        try {
-            await AsyncStorage.setItem(FREE_CREDITS_KEY, amount.toString());
-            await AsyncStorage.setItem(FREE_CREDITS_DATE_KEY, new Date().toDateString());
-        } catch (error) {
-            console.error('Error saving free credits:', error);
-        }
-    };
-
     const initializeCredits = async () => {
         try {
             setIsLoading(true);
 
-            // Load LOCAL free credits first (device-based)
-            await loadLocalFreeCredits();
-
-            // Then initialize SERVER purchased credits
+            // Initialize with server (source of truth for BOTH free and purchased)
             const result = await CreditSyncService.initializeCreditSystem();
 
             if (result.success !== false) {
                 setRecoveryCode(result.recoveryCode);
                 setPurchasedCredits(result.credits || 0);
-                // DON'T set free credits from server - keep local value
+                setFreeCreditsRemaining(result.freeCreditsRemaining ?? 3);
                 setNeedsRecovery(result.needsRecovery || false);
                 setIsOnline(true);
+
+                // Cache for offline use
+                await cacheCredits(result.credits || 0, result.freeCreditsRemaining ?? 3);
             } else {
                 console.log('Credit init failed, using cached values');
                 setIsOnline(false);
-                await loadCachedPurchasedCredits();
+                await loadCachedCredits();
             }
         } catch (error) {
             console.error('Failed to initialize credits:', error);
             setIsOnline(false);
-            await loadCachedPurchasedCredits();
+            await loadCachedCredits();
         } finally {
             setIsLoading(false);
         }
     };
 
-    // Load cached PURCHASED credits only
-    const loadCachedPurchasedCredits = async () => {
+    // Cache both credit types for offline fallback
+    const cacheCredits = async (purchased, free) => {
         try {
-            const cached = await AsyncStorage.getItem('@purchased_credits_cache');
-            if (cached) {
-                setPurchasedCredits(parseInt(cached) || 0);
+            await AsyncStorage.setItem(PURCHASED_CREDITS_CACHE_KEY, purchased.toString());
+            await AsyncStorage.setItem(FREE_CREDITS_CACHE_KEY, free.toString());
+        } catch (error) {
+            console.error('Failed to cache credits:', error);
+        }
+    };
+
+    // Load cached credits when offline
+    const loadCachedCredits = async () => {
+        try {
+            const cachedPurchased = await AsyncStorage.getItem(PURCHASED_CREDITS_CACHE_KEY);
+            const cachedFree = await AsyncStorage.getItem(FREE_CREDITS_CACHE_KEY);
+
+            if (cachedPurchased) setPurchasedCredits(parseInt(cachedPurchased) || 0);
+            if (cachedFree !== null) {
+                const parsed = parseInt(cachedFree);
+                setFreeCreditsRemaining(!isNaN(parsed) ? parsed : 3);
+            } else {
+                setFreeCreditsRemaining(3);
             }
+
             const code = await CreditSyncService.getRecoveryCode();
             if (code) setRecoveryCode(code);
         } catch (error) {
             console.error('Failed to load cached credits:', error);
-        }
-    };
-
-    // Cache purchased credits
-    const cachePurchasedCredits = async (credits) => {
-        try {
-            await AsyncStorage.setItem('@purchased_credits_cache', credits.toString());
-        } catch (error) {
-            console.error('Failed to cache credits:', error);
         }
     };
 
@@ -160,22 +136,19 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    // Sync PURCHASED balance from server (free credits stay local)
+    // Sync BOTH credit balances from server
     const syncBalance = useCallback(async () => {
         try {
-            // Refresh local free credits for the day
-            await loadLocalFreeCredits();
-
             // Check subscription status
             await checkSubscriptionStatus();
 
-            // Sync purchased credits from server
+            // Sync from server (source of truth for both)
             const result = await CreditSyncService.getBalance();
             if (result.success) {
                 setPurchasedCredits(result.credits);
-                // DON'T update free credits from server
+                setFreeCreditsRemaining(result.freeCreditsRemaining ?? FREE_DAILY_LIMIT);
                 setIsOnline(true);
-                await cachePurchasedCredits(result.credits);
+                await cacheCredits(result.credits, result.freeCreditsRemaining ?? FREE_DAILY_LIMIT);
             }
             return result;
         } catch (error) {
@@ -193,34 +166,25 @@ export const UserProvider = ({ children }) => {
                 return true;
             }
 
-            let remaining = cost;
-
-            // First, use FREE credits (local)
-            if (freeCreditsRemaining > 0) {
-                const freeToUse = Math.min(freeCreditsRemaining, remaining);
-                const newFreeCredits = freeCreditsRemaining - freeToUse;
-                setFreeCreditsRemaining(newFreeCredits);
-                await saveLocalFreeCredits(newFreeCredits);
-                remaining -= freeToUse;
+            const totalAvailable = freeCreditsRemaining + purchasedCredits;
+            if (totalAvailable < cost) {
+                return false; // Not enough credits
             }
 
-            // If still need more, use PURCHASED credits (server)
-            if (remaining > 0) {
-                if (purchasedCredits < remaining) {
-                    return false; // Not enough credits
-                }
+            // Let server handle the deduction (free first, then purchased)
+            const result = await CreditSyncService.useCredits(cost);
 
-                const result = await CreditSyncService.useCredits(remaining);
-                if (result.success) {
-                    setPurchasedCredits(result.remainingCredits);
-                    await cachePurchasedCredits(result.remainingCredits);
-                    return true;
-                } else {
-                    return false;
-                }
+            if (result.success) {
+                // Update both credit types from server response
+                setPurchasedCredits(result.remainingCredits);
+                setFreeCreditsRemaining(result.remainingFreeCredits);
+
+                // Cache for offline use
+                await cacheCredits(result.remainingCredits, result.remainingFreeCredits);
+                return true;
+            } else {
+                return false;
             }
-
-            return true;
         } catch (error) {
             console.error('Use credits error:', error);
             return false;
@@ -235,7 +199,7 @@ export const UserProvider = ({ children }) => {
 
             if (result.success) {
                 setPurchasedCredits(result.newBalance);
-                await cachePurchasedCredits(result.newBalance);
+                await cacheCredits(result.newBalance, freeCreditsRemaining);
                 return { success: true, newBalance: result.newBalance };
             } else if (result.alreadyProcessed) {
                 return { success: false, alreadyProcessed: true };
@@ -247,7 +211,7 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    // Recover account - only restores PURCHASED credits
+    // Recover account - restores BOTH credit types from server
     const recoverAccount = async (code) => {
         try {
             const result = await CreditSyncService.recoverAccount(code);
@@ -255,9 +219,9 @@ export const UserProvider = ({ children }) => {
             if (result.success) {
                 setRecoveryCode(result.recoveryCode);
                 setPurchasedCredits(result.credits);
-                // DON'T restore free credits - keep local device value
+                setFreeCreditsRemaining(result.freeCreditsRemaining ?? 3);
                 setNeedsRecovery(false);
-                await cachePurchasedCredits(result.credits);
+                await cacheCredits(result.credits, result.freeCreditsRemaining ?? 3);
                 return { success: true, message: result.message };
             }
             return { success: false, error: result.error };
@@ -276,7 +240,7 @@ export const UserProvider = ({ children }) => {
     // Get credit data for display
     const getCreditData = () => {
         return {
-            remainingFree: freeCreditsRemaining,
+            remainingFree: freeCreditsRemaining !== null ? freeCreditsRemaining : '-',
             purchasedCredits,
             totalAvailable: hasProSubscription ? 'Unlimited' : freeCreditsRemaining + purchasedCredits,
             freeLimit: FREE_DAILY_LIMIT,
