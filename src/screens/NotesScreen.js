@@ -26,6 +26,7 @@ import { useHistory } from '../context/HistoryContext';
 import { useFolders } from '../context/FoldersContext';
 import { useUser } from '../context/UserContext';
 import { generateNotes, generateFollowUp } from '../services/api';
+import { BannerAd, BannerAdSize, InterstitialAd, AdEventType, adUnitIDs, areAdsEnabled } from '../services/AdService';
 
 const { width } = Dimensions.get('window');
 
@@ -97,6 +98,38 @@ export default function NotesScreen() {
     const [followUpQuestion, setFollowUpQuestion] = useState('');
     const [followUpResponse, setFollowUpResponse] = useState('');
     const [isFollowUpLoading, setIsFollowUpLoading] = useState(false);
+
+    // Interstitial Ad State
+    const [interstitial, setInterstitial] = useState(null);
+    const [interstitialLoaded, setInterstitialLoaded] = useState(false);
+
+    const { hasProSubscription } = getCreditData();
+
+    // Initialize Interstitial Ad
+    useEffect(() => {
+        if (!areAdsEnabled || hasProSubscription) return;
+
+        const interstitialAd = InterstitialAd.createForAdRequest(adUnitIDs.interstitial, {
+            requestNonPersonalizedAdsOnly: true,
+        });
+
+        const unsubscribeLoaded = interstitialAd.addAdEventListener(AdEventType.LOADED, () => {
+            setInterstitialLoaded(true);
+        });
+
+        const unsubscribeClosed = interstitialAd.addAdEventListener(AdEventType.CLOSED, () => {
+            setInterstitialLoaded(false);
+            interstitialAd.load(); // Preload next one
+        });
+
+        interstitialAd.load();
+        setInterstitial(interstitialAd);
+
+        return () => {
+            unsubscribeLoaded();
+            unsubscribeClosed();
+        };
+    }, [hasProSubscription]);
 
     // Folder state
     const [selectedFolder, setSelectedFolder] = useState('general');
@@ -250,6 +283,14 @@ export default function NotesScreen() {
             await useCredits(1);
 
             setGeneratedNotes(result);
+
+            // Show interstitial ad after generation for non-pro users
+            if (areAdsEnabled && !hasProSubscription && interstitialLoaded && interstitial) {
+                // Show ad with a small delay
+                setTimeout(() => {
+                    interstitial.show().catch(err => console.error('Error showing interstitial:', err));
+                }, 800);
+            }
 
             // Save to history with folder
             addNote(result, selectedFolder);
@@ -853,6 +894,19 @@ export default function NotesScreen() {
                         </View>
                     ) : null
                 }
+
+                {/* Banner Ad */}
+                {areAdsEnabled && (
+                    <View style={{ alignItems: 'center', marginTop: 20 }}>
+                        <BannerAd
+                            unitId={adUnitIDs.banner}
+                            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+                            requestOptions={{
+                                requestNonPersonalizedAdsOnly: true,
+                            }}
+                        />
+                    </View>
+                )}
             </ScrollView >
         </View >
     );

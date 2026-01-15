@@ -23,7 +23,7 @@ import {
 } from '../services/DailyRewardsService';
 import PurchaseService, { PRODUCT_IDS, CREDITS_PER_PRODUCT } from '../services/PurchaseService';
 import { openManageSubscriptions } from '../services/AdvancedSubscriptionManager';
-import AdService, { showRewardedAd, loadRewardedAd, isRewardedAdReady } from '../services/AdService';
+import { showRewardedAd, loadRewardedAd, isRewardedAdReady } from '../services/AdService';
 
 const { width } = Dimensions.get('window');
 
@@ -162,6 +162,61 @@ export default function CreditsScreen({ navigation }) {
     const [rcPackages, setRcPackages] = useState({});
     const [pricesLoaded, setPricesLoaded] = useState(false);
 
+    // Rewarded Ad State
+    const [rewardedAd, setRewardedAd] = useState(null);
+    const [adLoaded, setAdLoaded] = useState(false);
+    const [isAdError, setIsAdError] = useState(false);
+
+    // Initialize Rewarded Ad
+    useEffect(() => {
+        if (!areAdsEnabled) return;
+
+        console.log('🎬 Initializing Rewarded Ad with ID:', adUnitIDs.rewarded);
+
+        const ad = RewardedAd.createForAdRequest(adUnitIDs.rewarded, {
+            requestNonPersonalizedAdsOnly: true,
+        });
+
+        const unsubscribeLoaded = ad.addAdEventListener(RewardedAdEventType.LOADED, () => {
+            console.log('✅ Rewarded Ad Loaded');
+            setAdLoaded(true);
+            setIsAdError(false);
+        });
+
+        const unsubscribeEarned = ad.addAdEventListener(
+            RewardedAdEventType.EARNED_REWARD,
+            (reward) => {
+                console.log('🎁 User earned reward:', reward);
+                // The actual credit adding logic is handled in handleDailyCheckIn
+                // after the ad is shown and closed successfully
+            }
+        );
+
+        const unsubscribeClosed = ad.addAdEventListener(RewardedAdEventType.CLOSED, () => {
+            console.log('🚪 Rewarded Ad Closed');
+            setAdLoaded(false);
+            // Preload next ad
+            ad.load();
+        });
+
+        const unsubscribeError = ad.addAdEventListener(RewardedAdEventType.ERROR, (error) => {
+            console.error('❌ Rewarded Ad Error:', error);
+            setIsAdError(true);
+            setAdLoaded(false);
+        });
+
+        // Load the ad
+        ad.load();
+        setRewardedAd(ad);
+
+        return () => {
+            unsubscribeLoaded();
+            unsubscribeEarned();
+            unsubscribeClosed();
+            unsubscribeError();
+        };
+    }, []);
+
     // Load streak status and init RevenueCat on mount and focus
     const loadStreakStatus = useCallback(async () => {
         const status = await getStreakStatus();
@@ -235,6 +290,19 @@ export default function CreditsScreen({ navigation }) {
             return;
         }
 
+        // Check if ads are enabled and loaded
+        if (areAdsEnabled && !adLoaded) {
+            if (isAdError) {
+                Alert.alert('Ad Error', 'Sorry, we couldn\'t load an ad right now. Please try again later.');
+                // Try to reload
+                rewardedAd?.load();
+            } else {
+                Alert.alert('Ad Loading', 'Please wait a moment while we load an ad for you...');
+                rewardedAd?.load();
+            }
+            return;
+        }
+
         setIsCheckingIn(true);
         let adShown = false;
 
@@ -261,8 +329,7 @@ export default function CreditsScreen({ navigation }) {
             } else {
                 // Try to load it for next time
                 loadRewardedAd();
-                // If ad not ready, maybe just let them check in? Or ask to retry?
-                // For better UX, we'll let them check in this time but log it
+                // If ad not ready, allow check-in anyway for better UX
                 console.log('Ad not ready, allowing check-in anyway');
                 adShown = true;
             }

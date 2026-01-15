@@ -301,3 +301,4 @@ export default {
     showInterstitialAd,
     isInterstitialAdReady,
 };
+
