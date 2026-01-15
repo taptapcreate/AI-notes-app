@@ -1,12 +1,35 @@
 // AdService - Handles all ad types for AI Notes
 import { Platform } from 'react-native';
-import {
-    AdEventType,
-    RewardedAd,
-    RewardedAdEventType,
-    InterstitialAd,
-    TestIds,
-} from 'react-native-google-mobile-ads';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+
+// Determine if we are running in Expo Go (ads don't work there)
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+export const areAdsEnabled = !isExpoGo;
+
+// Conditionally import react-native-google-mobile-ads (crashes in Expo Go)
+let AdEventType = { LOADED: 'loaded', CLOSED: 'closed', ERROR: 'error' };
+let RewardedAd = { createForAdRequest: () => ({ load: () => { }, show: () => { }, addAdEventListener: () => () => { } }) };
+let RewardedAdEventType = { LOADED: 'loaded', EARNED_REWARD: 'earned_reward', CLOSED: 'closed' };
+let InterstitialAd = { createForAdRequest: () => ({ load: () => { }, show: () => { }, addAdEventListener: () => () => { } }) };
+let BannerAd = () => null;
+let BannerAdSize = { ANCHORED_ADAPTIVE_BANNER: 'ANCHORED_ADAPTIVE_BANNER', BANNER: 'BANNER' };
+let TestIds = { BANNER: '', INTERSTITIAL: '', REWARDED: '' };
+
+if (areAdsEnabled) {
+    try {
+        const RNGoogleMobileAds = require('react-native-google-mobile-ads');
+        AdEventType = RNGoogleMobileAds.AdEventType;
+        RewardedAd = RNGoogleMobileAds.RewardedAd;
+        RewardedAdEventType = RNGoogleMobileAds.RewardedAdEventType;
+        InterstitialAd = RNGoogleMobileAds.InterstitialAd;
+        BannerAd = RNGoogleMobileAds.BannerAd;
+        BannerAdSize = RNGoogleMobileAds.BannerAdSize;
+        TestIds = RNGoogleMobileAds.TestIds;
+        console.log('✅ AdService: Native ads module loaded');
+    } catch (error) {
+        console.warn('⚠️ AdService: Failed to load native ads module, using mocks', error);
+    }
+}
 
 // ==========================================
 // AD UNIT IDS
@@ -292,6 +315,25 @@ export const initializeAds = () => {
     }
 };
 
+// Export ad unit IDs for use in screens (flat object with correct platform/test mode)
+export const adUnitIDs = {
+    banner: getAdUnitId('banner'),
+    interstitial: getAdUnitId('interstitial'),
+    rewarded: getAdUnitId('rewarded'),
+    native: getAdUnitId('native'),
+    appOpen: getAdUnitId('appOpen'),
+};
+
+// Re-export ad components and types for screens
+export {
+    BannerAd,
+    BannerAdSize,
+    InterstitialAd,
+    RewardedAd,
+    AdEventType,
+    RewardedAdEventType,
+};
+
 export default {
     initializeAds,
     loadRewardedAd,
@@ -300,5 +342,5 @@ export default {
     loadInterstitialAd,
     showInterstitialAd,
     isInterstitialAdReady,
+    areAdsEnabled,
 };
-

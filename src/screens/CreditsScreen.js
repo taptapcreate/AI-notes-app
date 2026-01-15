@@ -23,7 +23,15 @@ import {
 } from '../services/DailyRewardsService';
 import PurchaseService, { PRODUCT_IDS, CREDITS_PER_PRODUCT } from '../services/PurchaseService';
 import { openManageSubscriptions } from '../services/AdvancedSubscriptionManager';
-import { showRewardedAd, loadRewardedAd, isRewardedAdReady } from '../services/AdService';
+import {
+    showRewardedAd,
+    loadRewardedAd,
+    isRewardedAdReady,
+    areAdsEnabled,
+    adUnitIDs,
+    RewardedAd,
+    RewardedAdEventType
+} from '../services/AdService';
 
 const { width } = Dimensions.get('window');
 
@@ -169,6 +177,10 @@ export default function CreditsScreen({ navigation }) {
 
     // Initialize Rewarded Ad
     useEffect(() => {
+        // TEMPORARILY DISABLED - Ads causing crashes
+        // TODO: Re-enable after fixing ad initialization
+        return;
+
         if (!areAdsEnabled) return;
 
         console.log('🎬 Initializing Rewarded Ad with ID:', adUnitIDs.rewarded);
@@ -290,6 +302,9 @@ export default function CreditsScreen({ navigation }) {
             return;
         }
 
+        // TEMPORARILY DISABLED - Ads causing crashes
+        // Skip ad requirement and go straight to check-in
+        /*
         // Check if ads are enabled and loaded
         if (areAdsEnabled && !adLoaded) {
             if (isAdError) {
@@ -302,11 +317,15 @@ export default function CreditsScreen({ navigation }) {
             }
             return;
         }
+        */
 
         setIsCheckingIn(true);
-        let adShown = false;
+        // Skip ad logic - go straight to check-in
+        const adShown = true; // Pretend ad was shown
 
         try {
+            // TEMPORARILY DISABLED - Skip all ad logic
+            /*
             // Try to show rewarded ad
             const adReady = isRewardedAdReady();
 
@@ -315,56 +334,50 @@ export default function CreditsScreen({ navigation }) {
                     showRewardedAd({
                         onRewarded: (reward) => {
                             console.log('User earned reward:', reward);
-                            // Reward will be processed after modal closes
                         },
                         onClosed: () => {
-                            resolve(true); // Ad watched and closed
+                            resolve(true);
                         },
                         onError: (error) => {
                             console.error('Ad error:', error);
-                            resolve(false); // Ad failed
+                            resolve(false);
                         }
                     });
                 });
             } else {
-                // Try to load it for next time
                 loadRewardedAd();
-                // If ad not ready, allow check-in anyway for better UX
                 console.log('Ad not ready, allowing check-in anyway');
                 adShown = true;
             }
+            */
 
-            if (adShown) {
-                const result = await performDailyCheckIn();
+            // Direct check-in without ad (temporarily)
+            const result = await performDailyCheckIn();
 
-                if (result.success) {
-                    addCredits(result.credits);
+            if (result.success) {
+                addCredits(result.credits);
 
-                    if (result.isStreakBonus) {
-                        Alert.alert(
-                            '🎉 Streak Bonus!',
-                            `Congratulations! You completed a 5-day streak and earned ${result.credits} bonus credits!`,
-                            [{ text: 'Awesome!' }]
-                        );
-                    } else {
-                        Alert.alert(
-                            '✨ Daily Reward',
-                            `You earned ${result.credits} credit${result.credits > 1 ? 's' : ''}! Day ${result.newStreak} of 5.`,
-                            [{ text: 'Great!' }]
-                        );
-                    }
-
-                    // Refresh streak status
-                    await loadStreakStatus();
-
-                    // Preload next ad
-                    loadRewardedAd();
+                if (result.isStreakBonus) {
+                    Alert.alert(
+                        '🎉 Streak Bonus!',
+                        `Congratulations! You completed a 5-day streak and earned ${result.credits} bonus credits!`,
+                        [{ text: 'Awesome!' }]
+                    );
                 } else {
-                    Alert.alert('Already Claimed', result.message);
+                    Alert.alert(
+                        '✨ Daily Reward',
+                        `You earned ${result.credits} credit${result.credits > 1 ? 's' : ''}! Day ${result.newStreak} of 5.`,
+                        [{ text: 'Great!' }]
+                    );
                 }
+
+                // Refresh streak status
+                await loadStreakStatus();
+
+                // Preload next ad (disabled for now)
+                // loadRewardedAd();
             } else {
-                Alert.alert('Ad Error', 'Failed to load ad. Please try again in a moment.');
-                loadRewardedAd();
+                Alert.alert('Already Claimed', result.message);
             }
         } catch (error) {
             console.error('Check-in error:', error);
