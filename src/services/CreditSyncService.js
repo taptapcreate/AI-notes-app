@@ -252,16 +252,19 @@ export const initializeCreditSystem = async () => {
                     ...balance,
                 };
             } else if (balance.needsRecovery) {
-                // Code exists but user not found on server - needs recovery
-                return {
-                    isNewUser: false,
-                    needsRecovery: true,
-                    recoveryCode: existingCode,
-                };
+                // Code exists locally but NOT on server (DB wiped?)
+                // Self-heal: Clear invalid code and register as new user
+                console.log('⚠️ Local code invalid on server (404). Auto-healing...');
+                await clearRecoveryCode();
+                // Continue to registerUser below...
+            } else {
+                // Other error (network, 500, etc)
+                return { success: false, error: balance.error };
             }
         }
 
-        // New user - register
+        // New user (or healed user) - register
+        console.log('👤 Registering new user...');
         const result = await registerUser();
         if (result.success) {
             return {

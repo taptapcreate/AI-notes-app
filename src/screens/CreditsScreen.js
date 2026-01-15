@@ -8,6 +8,7 @@ import {
     Alert,
     Dimensions,
     ActivityIndicator,
+    Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,8 @@ import {
     STREAK_REWARDS
 } from '../services/DailyRewardsService';
 import PurchaseService, { PRODUCT_IDS, CREDITS_PER_PRODUCT } from '../services/PurchaseService';
+import { openManageSubscriptions } from '../services/AdvancedSubscriptionManager';
+import AdService, { showRewardedAd, loadRewardedAd, isRewardedAdReady } from '../services/AdService';
 
 const { width } = Dimensions.get('window');
 
@@ -233,38 +236,68 @@ export default function CreditsScreen({ navigation }) {
         }
 
         setIsCheckingIn(true);
-
-        // TODO: Show rewarded ad here
-        // For now, simulate ad completion
-        // Replace this with actual rewarded ad logic when ad ID is provided
+        let adShown = false;
 
         try {
-            // Simulate watching ad (replace with actual ad call)
-            // await showRewardedAd();
+            // Try to show rewarded ad
+            const adReady = isRewardedAdReady();
 
-            const result = await performDailyCheckIn();
-
-            if (result.success) {
-                addCredits(result.credits);
-
-                if (result.isStreakBonus) {
-                    Alert.alert(
-                        '🎉 Streak Bonus!',
-                        `Congratulations! You completed a 5-day streak and earned ${result.credits} bonus credits!`,
-                        [{ text: 'Awesome!' }]
-                    );
-                } else {
-                    Alert.alert(
-                        '✨ Daily Reward',
-                        `You earned ${result.credits} credit${result.credits > 1 ? 's' : ''}! Day ${result.newStreak} of 5.`,
-                        [{ text: 'Great!' }]
-                    );
-                }
-
-                // Refresh streak status
-                await loadStreakStatus();
+            if (adReady) {
+                adShown = await new Promise((resolve) => {
+                    showRewardedAd({
+                        onRewarded: (reward) => {
+                            console.log('User earned reward:', reward);
+                            // Reward will be processed after modal closes
+                        },
+                        onClosed: () => {
+                            resolve(true); // Ad watched and closed
+                        },
+                        onError: (error) => {
+                            console.error('Ad error:', error);
+                            resolve(false); // Ad failed
+                        }
+                    });
+                });
             } else {
-                Alert.alert('Already Claimed', result.message);
+                // Try to load it for next time
+                loadRewardedAd();
+                // If ad not ready, maybe just let them check in? Or ask to retry?
+                // For better UX, we'll let them check in this time but log it
+                console.log('Ad not ready, allowing check-in anyway');
+                adShown = true;
+            }
+
+            if (adShown) {
+                const result = await performDailyCheckIn();
+
+                if (result.success) {
+                    addCredits(result.credits);
+
+                    if (result.isStreakBonus) {
+                        Alert.alert(
+                            '🎉 Streak Bonus!',
+                            `Congratulations! You completed a 5-day streak and earned ${result.credits} bonus credits!`,
+                            [{ text: 'Awesome!' }]
+                        );
+                    } else {
+                        Alert.alert(
+                            '✨ Daily Reward',
+                            `You earned ${result.credits} credit${result.credits > 1 ? 's' : ''}! Day ${result.newStreak} of 5.`,
+                            [{ text: 'Great!' }]
+                        );
+                    }
+
+                    // Refresh streak status
+                    await loadStreakStatus();
+
+                    // Preload next ad
+                    loadRewardedAd();
+                } else {
+                    Alert.alert('Already Claimed', result.message);
+                }
+            } else {
+                Alert.alert('Ad Error', 'Failed to load ad. Please try again in a moment.');
+                loadRewardedAd();
             }
         } catch (error) {
             console.error('Check-in error:', error);
@@ -561,42 +594,138 @@ export default function CreditsScreen({ navigation }) {
                 {/* Subscription Plans Section */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Subscription Plans</Text>
-                        <Text style={styles.sectionSubtitle}>Unlimited AI power</Text>
+                        <Text style={styles.sectionTitle}>
+                            {credits.hasProSubscription ? 'Your Plan' : 'Subscription Plans'}
+                        </Text>
+                        <Text style={styles.sectionSubtitle}>
+                            {credits.hasProSubscription ? 'Unlimited AI power active' : 'Unlimited AI power'}
+                        </Text>
                     </View>
 
-                    {SUBSCRIPTION_PLANS.map((plan) => (
+                    {SUBSCRIPTION_PLANS.map((plan) => {
+                        // Check if this is the current plan
+                        const isCurrentPlan = credits.hasProSubscription &&
+                            ((credits.subscriptionType === 'monthly' && plan.id.includes('monthly')) ||
+                                (credits.subscriptionType === 'weekly' && plan.id.includes('weekly')));
+
+                        // For subscribers: determine if this is upgrade or downgrade
+                        const isUpgrade = credits.hasProSubscription &&
+                            credits.subscriptionType === 'weekly' && plan.id.includes('monthly');
+                        const isDowngrade = credits.hasProSubscription &&
+                            credits.subscriptionType === 'monthly' && plan.id.includes('weekly');
+
+                        const handlePlanPress = () => {
+                            if (isCurrentPlan) {
+                                // Already on this plan - do nothing or show manage in store
+                                Alert.alert(
+                                    'Current Plan',
+                                    'You are already subscribed to this plan. Manage in App Store.',
+                                    [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        { text: 'Manage in Store', onPress: () => openManageSubscriptions() }
+                                    ]
+                                );
+                            } else if (isDowngrade) {
+                                // Downgrade - redirect to App Store
+                                Alert.alert(
+                                    'Downgrade Plan',
+                                    'To downgrade to Weekly, you need to manage your subscription in the App Store. Your current plan will continue until it expires.',
+                                    [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        { text: 'Open App Store', onPress: () => openManageSubscriptions() }
+                                    ]
+                                );
+                            } else if (isUpgrade) {
+                                // Upgrade - immediate purchase
+                                Alert.alert(
+                                    'Upgrade to Monthly',
+                                    `Upgrade to Monthly plan for ${getPrice(plan.id, plan.price)}${plan.period}?\n\n• New plan starts immediately\n• Apple handles proration automatically`,
+                                    [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        { text: 'Upgrade Now', onPress: () => handleSubscription(plan) }
+                                    ]
+                                );
+                            } else {
+                                // Not subscribed - normal purchase
+                                handleSubscription(plan);
+                            }
+                        };
+
+                        return (
+                            <TouchableOpacity
+                                key={plan.id}
+                                style={[
+                                    styles.subscriptionCard,
+                                    isCurrentPlan && styles.subscriptionCardCurrent,
+                                    plan.recommended && !isCurrentPlan && styles.subscriptionCardRecommended
+                                ]}
+                                onPress={handlePlanPress}
+                                activeOpacity={0.8}
+                            >
+                                {/* Current Plan Badge */}
+                                {isCurrentPlan && (
+                                    <View style={styles.currentPlanBadge}>
+                                        <Ionicons name="checkmark-circle" size={14} color="#fff" />
+                                        <Text style={styles.currentPlanBadgeText}>CURRENT PLAN</Text>
+                                    </View>
+                                )}
+
+                                {/* Best Value Badge (only if not current) */}
+                                {plan.recommended && !isCurrentPlan && (
+                                    <View style={styles.subscriptionBadge}>
+                                        <Text style={styles.subscriptionBadgeText}>BEST VALUE</Text>
+                                    </View>
+                                )}
+
+                                <View style={[
+                                    styles.subscriptionMain,
+                                    (isCurrentPlan || plan.recommended) && { marginTop: 24 }
+                                ]}>
+                                    <View style={styles.subscriptionInfo}>
+                                        <Text style={[
+                                            styles.subscriptionName,
+                                            isCurrentPlan && { color: colors.primary }
+                                        ]}>{plan.name}</Text>
+                                        <Text style={styles.subscriptionPriceMain}>{getPrice(plan.id, plan.price)}</Text>
+                                    </View>
+
+                                    <View style={styles.subscriptionPriceContainer}>
+                                        {isUpgrade && (
+                                            <View style={styles.upgradeHint}>
+                                                <Ionicons name="arrow-up-circle" size={16} color="#10B981" />
+                                                <Text style={styles.upgradeHintText}>Upgrade</Text>
+                                            </View>
+                                        )}
+                                        {isDowngrade && (
+                                            <View style={styles.downgradeHint}>
+                                                <Ionicons name="open-outline" size={16} color={colors.primary} />
+                                                <Text style={styles.downgradeHintText}>Manage</Text>
+                                            </View>
+                                        )}
+                                        {!isUpgrade && !isDowngrade && (
+                                            <>
+                                                <Text style={styles.subscriptionPerWeek}>{plan.perWeek}</Text>
+                                                <Text style={styles.subscriptionPeriod}>per week</Text>
+                                            </>
+                                        )}
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    })}
+
+                    {/* Manage in Store button for subscribers */}
+                    {credits.hasProSubscription && (
                         <TouchableOpacity
-                            key={plan.id}
-                            style={[
-                                styles.subscriptionCard,
-                                plan.recommended && styles.subscriptionCardRecommended
-                            ]}
-                            onPress={() => handleSubscription(plan)}
-                            activeOpacity={0.8}
+                            style={styles.manageStoreButton}
+                            onPress={() => openManageSubscriptions()}
                         >
-                            {plan.recommended && (
-                                <View style={styles.subscriptionBadge}>
-                                    <Text style={styles.subscriptionBadgeText}>BEST VALUE</Text>
-                                </View>
-                            )}
-
-                            <View style={[
-                                styles.subscriptionMain,
-                                plan.recommended && { marginTop: 24 }
-                            ]}>
-                                <View style={styles.subscriptionInfo}>
-                                    <Text style={styles.subscriptionName}>{plan.name}</Text>
-                                    <Text style={styles.subscriptionPriceMain}>{getPrice(plan.id, plan.price)}</Text>
-                                </View>
-
-                                <View style={styles.subscriptionPriceContainer}>
-                                    <Text style={styles.subscriptionPerWeek}>{plan.perWeek}</Text>
-                                    <Text style={styles.subscriptionPeriod}>per week</Text>
-                                </View>
-                            </View>
+                            <Ionicons name="open-outline" size={16} color={colors.primary} />
+                            <Text style={[styles.manageStoreText, { color: colors.primary }]}>
+                                Manage Subscription in {Platform.OS === 'ios' ? 'App Store' : 'Play Store'}
+                            </Text>
                         </TouchableOpacity>
-                    ))}
+                    )}
                 </View>
 
                 {/* Credit Packs */}
@@ -1039,6 +1168,71 @@ const createStyles = (colors) => StyleSheet.create({
     subscriptionPeriod: {
         color: colors.textMuted,
         fontSize: 12,
+    },
+    subscriptionCardCurrent: {
+        borderColor: colors.primary,
+        borderWidth: 2,
+        backgroundColor: `${colors.primary}10`,
+    },
+    currentPlanBadge: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: colors.primary,
+        paddingVertical: 4,
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 4,
+    },
+    currentPlanBadgeText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 1,
+    },
+    upgradeHint: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: '#10B98120',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    upgradeHintText: {
+        color: '#10B981',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    downgradeHint: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: `${colors.primary}20`,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    downgradeHintText: {
+        color: colors.primary,
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    manageStoreButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 12,
+        marginTop: 8,
+    },
+    manageStoreText: {
+        fontSize: 14,
+        fontWeight: '600',
     },
     // Daily Gifts Styles
     dailyGiftsCard: {

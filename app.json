@@ -51,7 +51,14 @@
           "cameraPermission": "Allow AI Notes to use your camera for capturing images."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-4715041020157000~8553808599",
+          "iosAppId": "ca-app-pub-4715041020157000~8553808599"
+        }
+      ]
     ]
   }
 }

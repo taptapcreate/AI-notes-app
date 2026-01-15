@@ -112,32 +112,51 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    // Check subscription status via RevenueCat
+    // Check subscription status via AdvancedSubscriptionManager
     const checkSubscriptionStatus = async () => {
         try {
-            const result = await PurchaseService.checkProAccess();
-            if (result.success) {
-                setHasProSubscription(result.hasProAccess);
+            // Use dynamic import to avoid circular dependency
+            const { getSubscriptionStatus } = await import('../services/AdvancedSubscriptionManager');
+            const status = await getSubscriptionStatus();
 
-                // Determine subscription type if active
-                if (result.hasProAccess && result.customerInfo) {
-                    const activeEntitlements = result.customerInfo.entitlements.active;
-                    if (activeEntitlements) {
-                        const productId = Object.values(activeEntitlements)[0]?.productIdentifier || '';
-                        if (productId.includes('weekly')) {
-                            setSubscriptionType('weekly');
-                        } else if (productId.includes('monthly')) {
-                            setSubscriptionType('monthly');
-                        }
-                    }
-                } else {
-                    setSubscriptionType(null);
-                }
+            setHasProSubscription(status.hasProAccess);
+
+            // Get subscription type from subscription data
+            if (status.hasProAccess && status.subscriptionData) {
+                setSubscriptionType(status.subscriptionData.planType);
+            } else {
+                setSubscriptionType(null);
             }
-            return result;
+
+            return status;
         } catch (error) {
             console.error('Check subscription error:', error);
-            return { success: false };
+
+            // Fallback to PurchaseService if AdvancedSubscriptionManager fails
+            try {
+                const result = await PurchaseService.checkProAccess();
+                if (result.success) {
+                    setHasProSubscription(result.hasProAccess);
+
+                    if (result.hasProAccess && result.customerInfo) {
+                        const activeEntitlements = result.customerInfo.entitlements.active;
+                        if (activeEntitlements) {
+                            const productId = Object.values(activeEntitlements)[0]?.productIdentifier || '';
+                            if (productId.includes('weekly')) {
+                                setSubscriptionType('weekly');
+                            } else if (productId.includes('monthly')) {
+                                setSubscriptionType('monthly');
+                            }
+                        }
+                    } else {
+                        setSubscriptionType(null);
+                    }
+                }
+                return result;
+            } catch (fallbackError) {
+                console.error('Fallback check also failed:', fallbackError);
+                return { success: false };
+            }
         }
     };
 

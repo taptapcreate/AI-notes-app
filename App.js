@@ -17,6 +17,7 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { HistoryProvider } from './src/context/HistoryContext';
 import { FoldersProvider } from './src/context/FoldersContext';
 import { UserProvider } from './src/context/UserContext';
+import AdService from './src/services/AdService';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -185,6 +186,11 @@ function MainApp() {
 }
 
 export default function App() {
+  React.useEffect(() => {
+    // Initialize Ads safely after mount
+    AdService.initializeAds();
+  }, []);
+
   return (
     <SafeAreaProvider>
       <ThemeProvider>
