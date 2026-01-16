@@ -69,7 +69,9 @@ export const streamNotes = async (type, content, options = {}, onChunk, onComple
         });
 
         if (!response.ok) {
-            throw new Error('Failed to start streaming');
+            const errorText = await response.text().catch(() => 'Unknown error');
+            console.error('Streaming failed:', response.status, errorText);
+            throw new Error(`Streaming failed (${response.status}): ${errorText}`);
         }
 
         const reader = response.body.getReader();
