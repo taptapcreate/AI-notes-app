@@ -333,6 +333,12 @@ export default function NotesScreen() {
     };
 
     const handleGenerate = async () => {
+        // Prevent duplicate calls if already loading
+        if (isLoading) {
+            console.log('[DEBUG] Already loading, ignoring duplicate call');
+            return;
+        }
+
         if (!checkAvailability(1)) {
             Alert.alert(
                 'Credits Exhausted',
@@ -415,18 +421,16 @@ export default function NotesScreen() {
             console.log(`[DEBUG] Streaming notes for Type: ${apiType}`);
 
             // Use streaming for real-time typing effect
-            let fullText = '';
             await streamNotes(
                 apiType,
                 content,
                 { noteLength, format, tone, language },
-                // onChunk - append each chunk as it arrives
-                (chunk) => {
-                    fullText += chunk;
-                    setGeneratedNotes(fullText);
+                // onChunk - receives the accumulated text, just set it directly
+                (accumulatedText) => {
+                    setGeneratedNotes(accumulatedText);
                 },
-                // onComplete - save to history
-                async () => {
+                // onComplete - save to history (receives the final complete text)
+                async (finalText) => {
                     // Deduct credit only on success
                     await useCredits(1);
 
@@ -438,7 +442,7 @@ export default function NotesScreen() {
                     }
 
                     // Save to history with folder
-                    addNote(fullText, selectedFolder);
+                    addNote(finalText, selectedFolder);
                     setIsLoading(false);
                 },
                 // onError - handle errors

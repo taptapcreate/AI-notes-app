@@ -43,7 +43,8 @@ export const generateNotes = async (type, content, options = {}) => {
 };
 
 /**
- * Stream notes generation with real-time chunks
+ * Stream notes generation with typing effect
+ * Uses regular fetch then simulates typing since React Native doesn't support true SSE
  * @param {string} type - 'text', 'image', 'voice', 'pdf'
  * @param {string} content - The content or base64 data
  * @param {object} options - { noteLength, format, tone, language }
@@ -53,7 +54,8 @@ export const generateNotes = async (type, content, options = {}) => {
  */
 export const streamNotes = async (type, content, options = {}, onChunk, onComplete, onError) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/notes/stream`, {
+        // Use regular endpoint since React Native doesn't support SSE streaming
+        const response = await fetch(`${API_BASE_URL}/notes`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -69,46 +71,26 @@ export const streamNotes = async (type, content, options = {}, onChunk, onComple
         });
 
         if (!response.ok) {
-            const errorText = await response.text().catch(() => 'Unknown error');
-            console.error('Streaming failed:', response.status, errorText);
-            throw new Error(`Streaming failed (${response.status}): ${errorText}`);
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.details || errorData.error || 'Failed to generate notes');
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
+        const data = await response.json();
+        const fullText = data.notes;
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+        // Simulate typing effect by sending chunks
+        const words = fullText.split(' ');
+        let currentText = '';
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
+        for (let i = 0; i < words.length; i++) {
+            currentText += (i === 0 ? '' : ' ') + words[i];
+            onChunk?.(currentText);
 
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
-                    if (data === '[DONE]') {
-                        onComplete?.();
-                        return;
-                    }
-                    try {
-                        const parsed = JSON.parse(data);
-                        if (parsed.error) {
-                            onError?.(new Error(parsed.error));
-                            return;
-                        }
-                        if (parsed.text) {
-                            onChunk?.(parsed.text);
-                        }
-                    } catch (e) {
-                        // Ignore parse errors for incomplete chunks
-                    }
-                }
-            }
+            // Small delay between words for typing effect (15ms per word)
+            await new Promise(resolve => setTimeout(resolve, 15));
         }
-        onComplete?.();
+
+        onComplete?.(fullText);
     } catch (error) {
         console.error('Stream Error:', error);
         onError?.(error);
