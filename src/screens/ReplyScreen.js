@@ -148,6 +148,10 @@ export default function ReplyScreen() {
     const [showTranslateModal, setShowTranslateModal] = useState(false);
     const [translateReplyIndex, setTranslateReplyIndex] = useState(null);
     const [isTranslating, setIsTranslating] = useState(false);
+    const [modalVisible, setModalVisible] = useState(false);
+    const [polishReplyIndex, setPolishReplyIndex] = useState(null);
+    const [isPolishing, setIsPolishing] = useState(false);
+    const [polishMode, setPolishMode] = useState(null);
     const [showPolishModal, setShowPolishModal] = useState(false);
     const [interstitial, setInterstitial] = useState(null);
     const [interstitialLoaded, setInterstitialLoaded] = useState(false);
