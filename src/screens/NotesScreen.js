@@ -30,7 +30,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useHistory } from '../context/HistoryContext';
 import { useFolders } from '../context/FoldersContext';
 import { useUser } from '../context/UserContext';
-import { generateNotes, generateFollowUp } from '../services/api';
+import { generateNotes, generateFollowUp, streamNotes } from '../services/api';
 import { BannerAd, BannerAdSize, InterstitialAd, AdEventType, adUnitIDs, areAdsEnabled } from '../services/AdService';
 
 const { width } = Dimensions.get('window');
@@ -412,24 +412,43 @@ export default function NotesScreen() {
             // Save content for regeneration
             setLastContent({ type: inputType, content });
 
-            console.log(`[DEBUG] Generating notes for Type: ${apiType}, Content: ${content}`);
-            const result = await generateNotes(apiType, content, { noteLength, format, tone, language, isPro: hasProSubscription });
+            console.log(`[DEBUG] Streaming notes for Type: ${apiType}`);
 
-            // Deduct credit only on success
-            await useCredits(1);
+            // Use streaming for real-time typing effect
+            let fullText = '';
+            await streamNotes(
+                apiType,
+                content,
+                { noteLength, format, tone, language },
+                // onChunk - append each chunk as it arrives
+                (chunk) => {
+                    fullText += chunk;
+                    setGeneratedNotes(fullText);
+                },
+                // onComplete - save to history
+                async () => {
+                    // Deduct credit only on success
+                    await useCredits(1);
 
-            setGeneratedNotes(result);
+                    // Show interstitial ad after generation for non-pro users
+                    if (areAdsEnabled && !hasProSubscription && interstitialLoaded && interstitial) {
+                        setTimeout(() => {
+                            interstitial.show().catch(err => console.error('Error showing interstitial:', err));
+                        }, 800);
+                    }
 
-            // Show interstitial ad after generation for non-pro users
-            if (areAdsEnabled && !hasProSubscription && interstitialLoaded && interstitial) {
-                // Show ad with a small delay
-                setTimeout(() => {
-                    interstitial.show().catch(err => console.error('Error showing interstitial:', err));
-                }, 800);
-            }
-
-            // Save to history with folder
-            addNote(result, selectedFolder);
+                    // Save to history with folder
+                    addNote(fullText, selectedFolder);
+                    setIsLoading(false);
+                },
+                // onError - handle errors
+                (error) => {
+                    console.error('Streaming error:', error);
+                    Alert.alert('Error', error.message || 'Failed to generate notes');
+                    setIsLoading(false);
+                }
+            );
+            return; // Exit early since streaming handles completion
         } catch (error) {
             console.error('Error generating notes:', error);
 

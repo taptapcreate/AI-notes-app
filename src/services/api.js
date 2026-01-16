@@ -43,6 +43,77 @@ export const generateNotes = async (type, content, options = {}) => {
 };
 
 /**
+ * Stream notes generation with real-time chunks
+ * @param {string} type - 'text', 'image', 'voice', 'pdf'
+ * @param {string} content - The content or base64 data
+ * @param {object} options - { noteLength, format, tone, language }
+ * @param {function} onChunk - Callback for each text chunk
+ * @param {function} onComplete - Callback when streaming is done
+ * @param {function} onError - Callback for errors
+ */
+export const streamNotes = async (type, content, options = {}, onChunk, onComplete, onError) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/notes/stream`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                type,
+                content,
+                noteLength: options.noteLength || 'standard',
+                format: options.format || 'bullet',
+                tone: options.tone || 'professional',
+                language: options.language || 'English',
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to start streaming');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const data = line.slice(6);
+                    if (data === '[DONE]') {
+                        onComplete?.();
+                        return;
+                    }
+                    try {
+                        const parsed = JSON.parse(data);
+                        if (parsed.error) {
+                            onError?.(new Error(parsed.error));
+                            return;
+                        }
+                        if (parsed.text) {
+                            onChunk?.(parsed.text);
+                        }
+                    } catch (e) {
+                        // Ignore parse errors for incomplete chunks
+                    }
+                }
+            }
+        }
+        onComplete?.();
+    } catch (error) {
+        console.error('Stream Error:', error);
+        onError?.(error);
+    }
+};
+
+/**
  * Generate reply options for a message
  * @param {string} message - The message to reply to
  * @param {object} options - { tone, style, format, mode, language, isPro }
@@ -62,7 +133,8 @@ export const generateReply = async (message, options) => {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to generate reply');
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.details || errorData.error || 'Failed to generate reply');
         }
 
         const data = await response.json();
@@ -188,6 +260,7 @@ export const polishText = async (text, mode = 'grammar') => {
 
 export default {
     generateNotes,
+    streamNotes,
     generateReply,
     generateFollowUp,
     analyzeSentiment,
