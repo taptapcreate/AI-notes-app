@@ -42,7 +42,7 @@ const INPUT_TYPES = [
     { id: 'pdf', icon: 'document', label: 'PDF' },
     { id: 'website', icon: 'globe-outline', label: 'Web' },
     { id: 'youtube', icon: 'logo-youtube', label: 'YouTube' },
-    { id: 'calendar', icon: 'calendar', label: 'Calendar Prep' },
+    { id: 'calendar', icon: 'calendar', label: 'Calendar' },
     { id: 'location', icon: 'location-outline', label: 'Travel Guide' },
     { id: 'import', icon: 'folder-open-outline', label: 'Import File' },
 ];
@@ -77,13 +77,26 @@ const TONES = [
 ];
 
 const LANGUAGES = [
-    { id: 'English', label: 'English' },
-    { id: 'Spanish', label: 'Spanish' },
-    { id: 'French', label: 'French' },
-    { id: 'German', label: 'German' },
-    { id: 'Italian', label: 'Italian' },
-    { id: 'Hindi', label: 'Hindi' },
-    { id: 'Japanese', label: 'Japanese' },
+    { id: 'English', label: '🇬🇧 English' },
+    { id: 'Spanish', label: '🇪🇸 Spanish' },
+    { id: 'French', label: '🇫🇷 French' },
+    { id: 'German', label: '🇩🇪 German' },
+    { id: 'Hindi', label: '🇮🇳 Hindi' },
+    { id: 'Mandarin', label: '🇨🇳 Mandarin' },
+    { id: 'Portuguese', label: '🇵🇹 Portuguese' },
+    { id: 'Russian', label: '🇷🇺 Russian' },
+    { id: 'Japanese', label: '🇯🇵 Japanese' },
+    { id: 'Italian', label: '🇮🇹 Italian' },
+    { id: 'Korean', label: '🇰🇷 Korean' },
+    { id: 'Arabic', label: '🇸🇦 Arabic' },
+    { id: 'Dutch', label: '🇳🇱 Dutch' },
+    { id: 'Turkish', label: '🇹🇷 Turkish' },
+    { id: 'Polish', label: '🇵🇱 Polish' },
+    { id: 'Swedish', label: '🇸🇪 Swedish' },
+    { id: 'Indonesian', label: '🇮🇩 Indonesian' },
+    { id: 'Vietnamese', label: '🇻🇳 Vietnamese' },
+    { id: 'Thai', label: '🇹🇭 Thai' },
+    { id: 'Greek', label: '🇬🇷 Greek' },
 ];
 
 export default function NotesScreen() {
@@ -1116,7 +1129,7 @@ export default function NotesScreen() {
                                 </TouchableOpacity>
                             </View>
                             <ScrollView contentContainerStyle={{ padding: 20 }}>
-                                {events.map((event) => (
+                                {events?.map((event) => (
                                     <TouchableOpacity
                                         key={event.id}
                                         style={{
@@ -1499,7 +1512,7 @@ const createStyles = (colors) => StyleSheet.create({
         flexWrap: 'wrap',
         backgroundColor: colors.surface,
         borderRadius: 16,
-        padding: 4,
+        padding: 12,
         marginBottom: 20,
     },
     tab: {
@@ -1526,7 +1539,7 @@ const createStyles = (colors) => StyleSheet.create({
     inputCard: {
         backgroundColor: colors.surface,
         borderRadius: 16,
-        padding: 16,
+        padding: 20,
         marginBottom: 16,
         minHeight: 160,
         justifyContent: 'center',

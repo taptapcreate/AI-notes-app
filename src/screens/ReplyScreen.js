@@ -585,10 +585,10 @@ export default function ReplyScreen() {
                                 <Ionicons name="albums-outline" size={14} color={colors.primary} />
                                 <Text style={styles.pasteBtnText}>Templates</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.pasteBtn} onPress={pasteFromClipboard}>
+                            {/* <TouchableOpacity style={styles.pasteBtn} onPress={pasteFromClipboard}>
                                 <Ionicons name="clipboard" size={14} color={colors.primary} />
                                 <Text style={styles.pasteBtnText}>Paste</Text>
-                            </TouchableOpacity>
+                            </TouchableOpacity> */}
                         </View>
                     </View>
 
