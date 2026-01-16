@@ -12,6 +12,7 @@ import {
     Dimensions,
     Share,
     Modal,
+    Animated,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +33,7 @@ import { useFolders } from '../context/FoldersContext';
 import { useUser } from '../context/UserContext';
 import { generateNotes, generateFollowUp, streamNotes } from '../services/api';
 import { BannerAd, BannerAdSize, InterstitialAd, AdEventType, adUnitIDs, areAdsEnabled } from '../services/AdService';
+import { useStaggerAnimation, AnimatedSection } from '../hooks/useStaggerAnimation';
 
 const { width } = Dimensions.get('window');
 
@@ -43,8 +45,8 @@ const INPUT_TYPES = [
     { id: 'website', icon: 'globe-outline', label: 'Web' },
     { id: 'youtube', icon: 'logo-youtube', label: 'YouTube' },
     { id: 'calendar', icon: 'calendar', label: 'Calendar' },
-    { id: 'location', icon: 'location-outline', label: 'Travel Guide' },
-    { id: 'import', icon: 'folder-open-outline', label: 'Import File' },
+    { id: 'location', icon: 'location-outline', label: 'Travel' },
+    { id: 'import', icon: 'folder-open-outline', label: 'Import' },
 ];
 
 const NOTE_LENGTHS = [
@@ -106,6 +108,9 @@ export default function NotesScreen() {
     const { folders } = useFolders();
     const { useCredits, checkAvailability, getCreditData, hasProSubscription } = useUser();
 
+    // Stagger animation for sections
+    const { fadeAnims, slideAnims } = useStaggerAnimation(5);
+
     // Interstitial Ad State
     const [interstitial, setInterstitial] = useState(null);
     const [interstitialLoaded, setInterstitialLoaded] = useState(false);
@@ -128,6 +133,7 @@ export default function NotesScreen() {
     const [isLoading, setIsLoading] = useState(false);
     const [lastContent, setLastContent] = useState(null);
     const [suggestions, setSuggestions] = useState([]);
+    const [detectedLocation, setDetectedLocation] = useState(null); // For Travel mode
 
     // Settings state
     const [noteLength, setNoteLength] = useState('standard');
@@ -161,20 +167,37 @@ export default function NotesScreen() {
 
     const handleCalendarImport = async () => {
         try {
+            console.log("Requesting calendar permissions...");
             const { status } = await Calendar.requestCalendarPermissionsAsync();
             if (status !== 'granted') {
                 Alert.alert('Permission needed', 'We need calendar access to find your meetings.');
                 return;
             }
 
+            console.log("Fetching calendars...");
             const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+            console.log("Calendars fetched:", calendars ? calendars.length : "null");
+
+            if (!calendars || !Array.isArray(calendars) || calendars.length === 0) {
+                console.log("No valid calendars found");
+                Alert.alert('No Calendars', 'No calendars found on this device.');
+                return;
+            }
+
             const calendarIds = calendars.map(c => c.id);
 
             const startDate = new Date();
             const endDate = new Date();
             endDate.setDate(startDate.getDate() + 7); // Next 7 days
 
+            console.log("Fetching events for IDs:", calendarIds);
             const upcomingEvents = await Calendar.getEventsAsync(calendarIds, startDate, endDate);
+
+            if (!upcomingEvents || !Array.isArray(upcomingEvents)) {
+                console.log("No valid events found");
+                Alert.alert('No Events', 'No upcoming events found.');
+                return;
+            }
 
             // Filter and sort
             const sortedEvents = upcomingEvents
@@ -292,10 +315,10 @@ export default function NotesScreen() {
 
             if (address && address.length > 0) {
                 const place = address[0];
-                const locationString = `${place.city || place.subregion}, ${place.country}`;
-                setInputType('text');
+                const locationString = `${place.city || place.subregion || place.region}, ${place.country}`;
+                setDetectedLocation(locationString);
+                // Store the prompt in textInput behind the scenes for handleGenerate to use
                 setTextInput(`Create a comprehensive travel guide for ${locationString}. Include top attractions, local food recommendations, and cultural tips.`);
-                Alert.alert("Location Found!", `Ready to generate guide for ${locationString}`);
             }
             setIsLoading(false);
         } catch (error) {
@@ -630,7 +653,13 @@ export default function NotesScreen() {
                             multiline
                             value={textInput}
                             onChangeText={setTextInput}
+                            maxLength={5000}
                         />
+                        <View style={styles.charCounter}>
+                            <Text style={[styles.charCountText, textInput.length > 4500 && { color: colors.warning }]}>
+                                {textInput.length.toLocaleString()} / 5,000
+                            </Text>
+                        </View>
                     </View>
                 );
             case 'image':
@@ -784,13 +813,37 @@ export default function NotesScreen() {
             case 'location':
                 return (
                     <View style={styles.inputCard}>
-                        <TouchableOpacity style={styles.uploadArea} onPress={handleLocationGuide}>
-                            <LinearGradient colors={['#4F46E5', '#4338CA']} style={styles.uploadIcon}>
-                                <Ionicons name="location" size={28} color="#fff" />
-                            </LinearGradient>
-                            <Text style={styles.uploadText}>Get Travel Guide</Text>
-                            <Text style={styles.uploadSubtext}>Auto-detects your city & creates a guide</Text>
-                        </TouchableOpacity>
+                        {detectedLocation ? (
+                            // Show detected location
+                            <View style={styles.locationCard}>
+                                <LinearGradient colors={['#4F46E5', '#4338CA']} style={styles.locationIconLarge}>
+                                    <Ionicons name="location" size={32} color="#fff" />
+                                </LinearGradient>
+                                <View style={styles.locationInfo}>
+                                    <Text style={styles.locationLabel}>Your Current Location</Text>
+                                    <Text style={styles.locationName}>{detectedLocation}</Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.locationRefresh}
+                                    onPress={() => {
+                                        setDetectedLocation(null);
+                                        setTextInput('');
+                                        handleLocationGuide();
+                                    }}
+                                >
+                                    <Ionicons name="refresh" size={20} color={colors.primary} />
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            // Show detect button
+                            <TouchableOpacity style={styles.uploadArea} onPress={handleLocationGuide}>
+                                <LinearGradient colors={['#4F46E5', '#4338CA']} style={styles.uploadIcon}>
+                                    <Ionicons name="location" size={28} color="#fff" />
+                                </LinearGradient>
+                                <Text style={styles.uploadText}>Detect My Location</Text>
+                                <Text style={styles.uploadSubtext}>Tap to get a travel guide for your city</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 );
             case 'import':
@@ -943,7 +996,12 @@ export default function NotesScreen() {
         <View style={styles.container}>
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Input Type Tabs */}
-                <View style={styles.tabContainer}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.tabScrollContainer}
+                    style={styles.tabScroll}
+                >
                     {INPUT_TYPES.map((type) => (
                         <TouchableOpacity
                             key={type.id}
@@ -952,7 +1010,7 @@ export default function NotesScreen() {
                         >
                             <Ionicons
                                 name={type.icon}
-                                size={20}
+                                size={16}
                                 color={inputType === type.id ? '#fff' : colors.textMuted}
                             />
                             <Text style={[styles.tabText, inputType === type.id && styles.tabTextActive]}>
@@ -960,7 +1018,7 @@ export default function NotesScreen() {
                             </Text>
                         </TouchableOpacity>
                     ))}
-                </View>
+                </ScrollView>
 
                 {/* Input Area */}
                 {renderInputArea()}
@@ -983,8 +1041,13 @@ export default function NotesScreen() {
                     </TouchableOpacity>
 
                     {showTemplates && (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, paddingHorizontal: 20 }}>
-                            <View style={{ flexDirection: 'row', gap: 12, paddingBottom: 4 }}>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            style={{ marginHorizontal: -20 }}
+                            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 4 }}
+                        >
+                            <View style={{ flexDirection: 'row', gap: 12 }}>
                                 {FORMATS.slice(0, 5).map((item) => (
                                     <TouchableOpacity
                                         key={item.id}
@@ -1087,7 +1150,7 @@ export default function NotesScreen() {
                             </View>
 
                             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
-                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
                                     {FORMATS
                                         .filter(item =>
                                             item.label.toLowerCase().includes(templateSearch.toLowerCase()) ||
@@ -1098,7 +1161,7 @@ export default function NotesScreen() {
                                                 key={item.id}
                                                 style={[
                                                     styles.templateCard,
-                                                    { width: '48%', marginBottom: 12 }, // Grid layout
+                                                    { width: '48%', marginBottom: 16, marginRight: 0 },
                                                     format === item.id && styles.templateCardActive
                                                 ]}
                                                 onPress={() => {
@@ -1368,7 +1431,7 @@ export default function NotesScreen() {
                                 <Text style={styles.outputTitle}>Generated Notes</Text>
                             </View>
 
-                            {/* Action Buttons Row */}
+                            {/* Action Buttons - Row 1 */}
                             <View style={styles.actionRow}>
                                 <TouchableOpacity style={styles.actionBtn} onPress={regenerateNotes} disabled={isLoading}>
                                     <Ionicons name="refresh" size={18} color={colors.primary} />
@@ -1382,6 +1445,10 @@ export default function NotesScreen() {
                                     <Ionicons name="copy-outline" size={18} color={colors.accent} />
                                     <Text style={[styles.actionBtnText, { color: colors.accent }]}>Copy</Text>
                                 </TouchableOpacity>
+                            </View>
+
+                            {/* Action Buttons - Row 2 */}
+                            <View style={styles.actionRow}>
                                 <TouchableOpacity style={styles.actionBtn} onPress={handleVisualize} disabled={isVisualizing}>
                                     {isVisualizing ? (
                                         <ActivityIndicator size="small" color={colors.primary} />
@@ -1485,11 +1552,18 @@ export default function NotesScreen() {
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>Recent Notes</Text>
-                        {notes.length > 0 && (
-                            <TouchableOpacity onPress={handleClearAllHistory}>
-                                <Text style={styles.clearAllText}>Clear All</Text>
-                            </TouchableOpacity>
-                        )}
+                        <View style={{ flexDirection: 'row', gap: 16 }}>
+                            {notes.length > 0 && (
+                                <TouchableOpacity onPress={() => navigation.navigate('History')}>
+                                    <Text style={[styles.clearAllText, { color: colors.primary }]}>See All</Text>
+                                </TouchableOpacity>
+                            )}
+                            {notes.length > 0 && (
+                                <TouchableOpacity onPress={handleClearAllHistory}>
+                                    <Text style={styles.clearAllText}>Clear All</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
                     </View>
 
                     {notes.length === 0 ? (
@@ -1530,26 +1604,29 @@ const createStyles = (colors) => StyleSheet.create({
         padding: 16,
         paddingBottom: 32,
     },
-    tabContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        backgroundColor: colors.surface,
-        borderRadius: 16,
-        padding: 12,
-        marginBottom: 20,
+    tabScroll: {
+        marginHorizontal: -16,
+        marginBottom: 16,
+    },
+    tabScrollContainer: {
+        paddingHorizontal: 16,
+        gap: 8,
     },
     tab: {
-        width: '31%', // Fits 3 per row with gap
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 14,
         borderRadius: 12,
         gap: 6,
-        marginBottom: 4,
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
     },
     tabActive: {
         backgroundColor: colors.primary,
+        borderColor: colors.primary,
     },
     tabText: {
         color: colors.textMuted,
@@ -1562,17 +1639,29 @@ const createStyles = (colors) => StyleSheet.create({
     inputCard: {
         backgroundColor: colors.surface,
         borderRadius: 16,
-        padding: 20,
+        padding: 16,
         marginBottom: 16,
         minHeight: 160,
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
     },
     textInput: {
         color: colors.text,
         fontSize: 16,
-        minHeight: 130,
+        minHeight: 110,
         textAlignVertical: 'top',
-        lineHeight: 24,
+        lineHeight: 26,
+        fontFamily: 'Inter_400Regular',
+    },
+    charCounter: {
+        alignItems: 'flex-end',
+        marginTop: 8,
+    },
+    charCountText: {
+        fontSize: 12,
+        color: colors.textMuted,
+        fontFamily: 'Inter_400Regular',
     },
     mediaButtons: {
         flexDirection: 'row',
@@ -1694,6 +1783,40 @@ const createStyles = (colors) => StyleSheet.create({
     uploadSubtext: {
         color: colors.textMuted,
         fontSize: 13,
+    },
+    locationCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        gap: 14,
+    },
+    locationIconLarge: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    locationInfo: {
+        flex: 1,
+    },
+    locationLabel: {
+        color: colors.textMuted,
+        fontSize: 12,
+        marginBottom: 4,
+    },
+    locationName: {
+        color: colors.text,
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    locationRefresh: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: `${colors.primary}15`,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     linkContainer: {
         flexDirection: 'row',
@@ -2043,7 +2166,7 @@ const createStyles = (colors) => StyleSheet.create({
     templateCardActive: {
         borderColor: colors.primary,
         borderWidth: 2, // Thicker border
-        backgroundColor: `${colors.primary}08`,
+        // backgroundColor: removed to fix Android shadow artifacts
         transform: [{ scale: 1.02 }],
     },
     templateIconContainer: {
@@ -2074,6 +2197,7 @@ const createStyles = (colors) => StyleSheet.create({
     // Segmented Control
     segmentedControl: {
         flexDirection: 'row',
+        width: '100%', // Ensure it fits within parent padding
         backgroundColor: colors.surface,
         borderRadius: 12,
         padding: 4,

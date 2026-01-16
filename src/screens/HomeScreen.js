@@ -6,6 +6,7 @@ import {
     ScrollView,
     TouchableOpacity,
     Dimensions,
+    Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,6 +15,7 @@ import { useHistory } from '../context/HistoryContext';
 import { useUser } from '../context/UserContext';
 import Markdown from 'react-native-markdown-display';
 import { BannerAd, BannerAdSize, adUnitIDs, areAdsEnabled } from '../services/AdService';
+import { lightTap } from '../utils/haptics';
 
 const { width } = Dimensions.get('window');
 
@@ -46,6 +48,61 @@ export default function HomeScreen({ navigation }) {
     const styles = createStyles(colors);
     const credits = getCreditData();
 
+    // Stagger animation values for each section
+    const fadeAnims = React.useRef([
+        new Animated.Value(0), // Greeting
+        new Animated.Value(0), // Credits
+        new Animated.Value(0), // Quick Actions
+        new Animated.Value(0), // Quick Start
+        new Animated.Value(0), // Stats
+        new Animated.Value(0), // Recent Activity
+        new Animated.Value(0), // Tip
+    ]).current;
+
+    const slideAnims = React.useRef([
+        new Animated.Value(30),
+        new Animated.Value(30),
+        new Animated.Value(30),
+        new Animated.Value(30),
+        new Animated.Value(30),
+        new Animated.Value(30),
+        new Animated.Value(30),
+    ]).current;
+
+    // Run stagger animation on mount
+    React.useEffect(() => {
+        const animations = fadeAnims.map((fadeAnim, index) =>
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 400,
+                    delay: index * 100,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(slideAnims[index], {
+                    toValue: 0,
+                    duration: 400,
+                    delay: index * 100,
+                    useNativeDriver: true,
+                }),
+            ])
+        );
+        Animated.stagger(100, animations).start();
+    }, []);
+
+    // Helper component for animated sections
+    const AnimatedSection = ({ index, children, style }) => (
+        <Animated.View style={[
+            style,
+            {
+                opacity: fadeAnims[index],
+                transform: [{ translateY: slideAnims[index] }],
+            }
+        ]}>
+            {children}
+        </Animated.View>
+    );
+
     // Get recent items (last 3)
     const recentNotes = notes.slice(0, 3);
     const recentReplies = replies.slice(0, 3);
@@ -61,14 +118,48 @@ export default function HomeScreen({ navigation }) {
         bullet_list: { marginBottom: 0 },
     };
 
-    const QuickAction = ({ icon, label, gradient, onPress }) => (
-        <TouchableOpacity style={styles.quickAction} onPress={onPress} activeOpacity={0.8}>
-            <LinearGradient colors={gradient} style={styles.quickActionIcon}>
-                <Ionicons name={icon} size={24} color="#fff" />
-            </LinearGradient>
-            <Text style={styles.quickActionLabel}>{label}</Text>
-        </TouchableOpacity>
-    );
+    const QuickAction = ({ icon, label, gradient, onPress }) => {
+        const scaleAnim = React.useRef(new Animated.Value(1)).current;
+
+        const handlePressIn = () => {
+            Animated.spring(scaleAnim, {
+                toValue: 0.88,
+                useNativeDriver: true,
+                speed: 50,
+            }).start();
+        };
+
+        const handlePressOut = () => {
+            Animated.spring(scaleAnim, {
+                toValue: 1,
+                useNativeDriver: true,
+                speed: 15,
+                bounciness: 12,
+            }).start();
+        };
+
+        const handlePress = () => {
+            lightTap();
+            onPress();
+        };
+
+        return (
+            <Animated.View style={[styles.quickAction, { transform: [{ scale: scaleAnim }] }]}>
+                <TouchableOpacity
+                    onPress={handlePress}
+                    onPressIn={handlePressIn}
+                    onPressOut={handlePressOut}
+                    activeOpacity={0.9}
+                    style={{ alignItems: 'center' }}
+                >
+                    <LinearGradient colors={gradient} style={styles.quickActionIcon}>
+                        <Ionicons name={icon} size={24} color="#fff" />
+                    </LinearGradient>
+                    <Text style={styles.quickActionLabel}>{label}</Text>
+                </TouchableOpacity>
+            </Animated.View>
+        );
+    };
 
     const StatCard = ({ icon, value, label, color }) => (
         <View style={styles.statCard}>
@@ -80,73 +171,93 @@ export default function HomeScreen({ navigation }) {
         </View>
     );
 
-    const HistoryItem = ({ item, type }) => (
-        <TouchableOpacity style={styles.historyItem} activeOpacity={0.7}>
-            <View style={styles.historyHeader}>
-                <View style={[styles.historyType, { backgroundColor: type === 'note' ? `${colors.primary}20` : `${colors.secondary}20` }]}>
-                    <Ionicons
-                        name={type === 'note' ? 'document-text' : 'chatbubble'}
-                        size={12}
-                        color={type === 'note' ? colors.primary : colors.secondary}
-                    />
-                    <Text style={[styles.historyTypeText, { color: type === 'note' ? colors.primary : colors.secondary }]}>
-                        {type === 'note' ? 'Note' : 'Reply'}
+    const RecentCard = ({ item, type }) => {
+        const handlePress = () => {
+            navigation.navigate('NoteDetail', { item, type });
+        };
+
+        const isNote = type === 'note';
+
+        return (
+            <TouchableOpacity style={styles.recentCard} activeOpacity={0.7} onPress={handlePress}>
+                <LinearGradient
+                    colors={isNote ? [`${colors.primary}15`, `${colors.primary}05`] : [`${colors.secondary}15`, `${colors.secondary}05`]}
+                    style={styles.recentCardGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                >
+                    <View style={styles.recentCardHeader}>
+                        <View style={[styles.recentIcon, { backgroundColor: isNote ? colors.primary : colors.secondary }]}>
+                            <Ionicons
+                                name={isNote ? 'document-text' : 'chatbubble'}
+                                size={12}
+                                color="#fff"
+                            />
+                        </View>
+                        <Text style={styles.recentDate}>{formatDate(item.createdAt).split(',')[0]}</Text>
+                    </View>
+
+                    <Text style={styles.recentContent} numberOfLines={4}>
+                        {item.content}
                     </Text>
-                </View>
-                <Text style={styles.historyTime}>{formatDate(item.createdAt)}</Text>
-            </View>
-            <View style={styles.historyContent}>
-                <Markdown style={markdownStyles}>
-                    {item.content.length > 100 ? item.content.substring(0, 100) + '...' : item.content}
-                </Markdown>
-            </View>
-        </TouchableOpacity>
-    );
+
+                    <View style={styles.recentFooter}>
+                        <Text style={[styles.recentType, { color: isNote ? colors.primary : colors.secondary }]}>
+                            {isNote ? 'Smart Note' : 'AI Reply'}
+                        </Text>
+                        <Ionicons name="arrow-forward" size={14} color={colors.textMuted} />
+                    </View>
+                </LinearGradient>
+            </TouchableOpacity>
+        );
+    };
 
     return (
         <View style={styles.container}>
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Greeting */}
-                <View style={styles.greetingSection}>
+                <AnimatedSection index={0} style={styles.greetingSection}>
                     <Ionicons name={greeting.icon} size={40} color={colors.primary} style={{ marginBottom: 12 }} />
                     <Text style={styles.greetingText}>{greeting.text}!</Text>
                     <Text style={styles.greetingSubtext}>What would you like to create today?</Text>
-                </View>
+                </AnimatedSection>
 
                 {/* Credits Summary */}
-                <TouchableOpacity
-                    style={styles.creditsSummary}
-                    activeOpacity={0.9}
-                    onPress={() => navigation.navigate('Credits')}
-                >
-                    <LinearGradient
-                        colors={[colors.primary, colors.secondary]}
-                        style={styles.creditsGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
+                <AnimatedSection index={1}>
+                    <TouchableOpacity
+                        style={styles.creditsSummary}
+                        activeOpacity={0.9}
+                        onPress={() => navigation.navigate('Credits')}
                     >
-                        <View style={{ flex: 1 }}>
-                            <View style={styles.creditDisplayRow}>
-                                <Ionicons name="flash" size={16} color="#fff" style={{ opacity: 0.9 }} />
-                                <Text style={styles.creditLabelText}>Daily Free:</Text>
-                                <Text style={styles.creditValueMain}>{credits.remainingFree}</Text>
-                            </View>
-                            {(credits.purchasedCredits > 0) && (
-                                <View style={[styles.creditDisplayRow, { marginTop: 4 }]}>
-                                    <Ionicons name="wallet" size={16} color="#fff" style={{ opacity: 0.9 }} />
-                                    <Text style={styles.creditLabelText}>Purchased:</Text>
-                                    <Text style={styles.creditValueSub}>{credits.purchasedCredits}</Text>
+                        <LinearGradient
+                            colors={[colors.primary, colors.secondary]}
+                            style={styles.creditsGradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                        >
+                            <View style={{ flex: 1 }}>
+                                <View style={styles.creditDisplayRow}>
+                                    <Ionicons name="flash" size={16} color="#fff" style={{ opacity: 0.9 }} />
+                                    <Text style={styles.creditLabelText}>Daily Free:</Text>
+                                    <Text style={styles.creditValueMain}>{credits.remainingFree}</Text>
                                 </View>
-                            )}
-                        </View>
-                        <View style={styles.creditsAction}>
-                            <Ionicons name="add-circle" size={32} color="#fff" />
-                        </View>
-                    </LinearGradient>
-                </TouchableOpacity>
+                                {(credits.purchasedCredits > 0) && (
+                                    <View style={[styles.creditDisplayRow, { marginTop: 4 }]}>
+                                        <Ionicons name="wallet" size={16} color="#fff" style={{ opacity: 0.9 }} />
+                                        <Text style={styles.creditLabelText}>Purchased:</Text>
+                                        <Text style={styles.creditValueSub}>{credits.purchasedCredits}</Text>
+                                    </View>
+                                )}
+                            </View>
+                            <View style={styles.creditsAction}>
+                                <Ionicons name="add-circle" size={32} color="#fff" />
+                            </View>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </AnimatedSection>
 
                 {/* Quick Actions */}
-                <View style={styles.section}>
+                <AnimatedSection index={2} style={styles.section}>
                     <Text style={styles.sectionTitle}>Quick Actions</Text>
                     <View style={styles.quickActions}>
                         <QuickAction
@@ -168,38 +279,84 @@ export default function HomeScreen({ navigation }) {
                             onPress={() => navigation.navigate('Reply')}
                         />
                     </View>
-                </View>
+                </AnimatedSection>
+
+                {/* Quick Start Templates */}
+                <AnimatedSection index={3} style={styles.section}>
+                    <Text style={styles.sectionTitle}>Quick Start</Text>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+                        style={{ marginHorizontal: -16 }}
+                    >
+                        {[
+                            { id: 'email', icon: 'mail', label: 'Email', color: '#3B82F6' },
+                            { id: 'blog', icon: 'newspaper', label: 'Blog', color: '#10B981' },
+                            { id: 'grammar', icon: 'hammer', label: 'Fix', color: '#F59E0B' },
+                            { id: 'social', icon: 'share-social', label: 'Social', color: '#8B5CF6' },
+                            { id: 'summary', icon: 'list', label: 'Summary', color: '#EC4899' },
+                        ].map((item) => (
+                            <TouchableOpacity
+                                key={item.id}
+                                style={[styles.quickStartChip, { backgroundColor: `${item.color}15`, borderColor: `${item.color}30` }]}
+                                onPress={() => navigation.navigate('Notes')}
+                            >
+                                <Ionicons name={item.icon} size={16} color={item.color} />
+                                <Text style={[styles.quickStartLabel, { color: item.color }]}>{item.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </AnimatedSection>
 
                 {/* Stats */}
-                <View style={styles.section}>
+                <AnimatedSection index={4} style={styles.section}>
                     <Text style={styles.sectionTitle}>Today's Activity</Text>
                     <View style={styles.statsRow}>
                         <StatCard icon="document-text" value={stats.notesToday} label="Notes" color={colors.primary} />
                         <StatCard icon="chatbubble" value={stats.repliesToday} label="Replies" color={colors.secondary} />
                         <StatCard icon="layers" value={stats.totalNotes + stats.totalReplies} label="Total" color={colors.accent} />
                     </View>
-                </View>
+                </AnimatedSection>
 
                 {/* Recent Activity */}
                 {(recentNotes.length > 0 || recentReplies.length > 0) && (
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
                             <Text style={styles.sectionTitle}>Recent Activity</Text>
-                            {(notes.length > 3 || replies.length > 3) && (
-                                <TouchableOpacity>
-                                    <Text style={styles.seeAll}>See All</Text>
-                                </TouchableOpacity>
-                            )}
+                            {/* Always show See All when there are items */}
+                            <TouchableOpacity onPress={() => navigation.navigate('History')}>
+                                <Text style={styles.seeAll}>See All</Text>
+                            </TouchableOpacity>
                         </View>
 
                         {/* Combine and sort by date */}
-                        {[...recentNotes.map(n => ({ ...n, itemType: 'note' })), ...recentReplies.map(r => ({ ...r, itemType: 'reply' }))]
-                            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-                            .slice(0, 5)
-                            .map((item) => (
-                                <HistoryItem key={item.id} item={item} type={item.itemType} />
-                            ))
-                        }
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={{ paddingHorizontal: 16, gap: 16, paddingBottom: 20 }}
+                            style={{ marginHorizontal: -16 }}
+                        >
+                            {[...recentNotes.map(n => ({ ...n, itemType: 'note' })), ...recentReplies.map(r => ({ ...r, itemType: 'reply' }))]
+                                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                                .slice(0, 5)
+                                .map((item) => (
+                                    <RecentCard key={item.id} item={item} type={item.itemType} />
+                                ))
+                            }
+                            {/* View All Card - always show when there are items */}
+                            <TouchableOpacity
+                                style={styles.viewAllCard}
+                                onPress={() => navigation.navigate('History')}
+                                activeOpacity={0.8}
+                            >
+                                <View style={styles.viewAllIcon}>
+                                    <Ionicons name="grid-outline" size={24} color={colors.primary} />
+                                </View>
+                                <Text style={styles.viewAllText}>View All</Text>
+                                <Text style={styles.viewAllCount}>{notes.length + replies.length} items</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
                     </View>
                 )}
 
@@ -423,6 +580,64 @@ const createStyles = (colors) => StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 40,
     },
+    // Recent Cards
+    recentCard: {
+        width: 160,
+        height: 150,
+        backgroundColor: colors.surface,
+        borderRadius: 20,
+        marginRight: 0,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    recentCardGradient: {
+        flex: 1,
+        padding: 14,
+        justifyContent: 'space-between',
+    },
+    recentCardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 8,
+    },
+    recentIcon: {
+        width: 28,
+        height: 28,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    recentDate: {
+        fontSize: 11,
+        fontWeight: '500',
+        color: colors.textMuted,
+        marginTop: 4,
+    },
+    recentContent: {
+        fontSize: 12,
+        color: colors.textSecondary,
+        lineHeight: 18,
+        flex: 1,
+    },
+    recentFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 10,
+    },
+    recentType: {
+        fontSize: 10,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
     emptyTitle: {
         color: colors.text,
         fontSize: 18,
@@ -459,5 +674,51 @@ const createStyles = (colors) => StyleSheet.create({
         color: colors.textSecondary,
         fontSize: 13,
         lineHeight: 18,
+    },
+    // Quick Start
+    quickStartChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+        borderWidth: 1,
+        marginRight: 8,
+        gap: 6,
+    },
+    quickStartLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    // View All Card
+    viewAllCard: {
+        width: 120,
+        height: 160,
+        backgroundColor: colors.surface,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
+        borderStyle: 'dashed',
+    },
+    viewAllIcon: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: `${colors.primary}15`,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    viewAllText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.primary,
+    },
+    viewAllCount: {
+        fontSize: 11,
+        color: colors.textMuted,
+        marginTop: 4,
     },
 });

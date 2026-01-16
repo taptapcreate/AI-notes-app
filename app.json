@@ -67,7 +67,8 @@
           "androidAppId": "ca-app-pub-4715041020157000~8553808599",
           "iosAppId": "ca-app-pub-4715041020157000~8553808599"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "eas": {

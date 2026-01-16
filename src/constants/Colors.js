@@ -1,47 +1,48 @@
 // Theme colors for Light and Dark mode
+// Purple/Violet theme with clean gradients
 
 export const DarkTheme = {
   mode: 'dark',
 
-  // Primary gradient colors
-  primary: '#8b5cf6', // Violet
-  primaryDark: '#7c3aed',
-  primaryLight: '#a78bfa',
+  // Primary - Violet/Purple
+  primary: '#8B5CF6',
+  primaryDark: '#7C3AED',
+  primaryLight: '#A78BFA',
 
-  // Secondary  
-  secondary: '#0ea5e9', // Sky Blue
-  secondaryDark: '#0284c7',
+  // Secondary - Sky Blue
+  secondary: '#0EA5E9',
+  secondaryDark: '#0284C7',
 
-  // Accent colors
-  accent: '#10b981', // Emerald
-  accentLight: '#34d399',
+  // Accent - Emerald
+  accent: '#10B981',
+  accentLight: '#34D399',
 
-  // Gradient pairs (Modern, rich 3-stop gradients)
-  gradientPrimary: ['#6366f1', '#8b5cf6', '#d946ef'], // Indigo -> Violet -> Fuchsia (Vibrant)
-  gradientSecondary: ['#3b82f6', '#0ea5e9', '#38bdf8'], // Blue -> Sky -> Light Sky (Cool/Trust)
-  gradientAccent: ['#10b981', '#14b8a6', '#06b6d4'], // Emerald -> Teal -> Cyan (Fresh)
+  // Clean 2-stop gradients (softer than 3-stop)
+  gradientPrimary: ['#7C3AED', '#A78BFA'],
+  gradientSecondary: ['#0284C7', '#38BDF8'],
+  gradientAccent: ['#059669', '#34D399'],
 
-  // Background (Deep "Midnight" Slate)
-  background: '#0f172a',
-  surface: '#1e293b',
+  // Background - Dark Slate
+  background: '#0F172A',
+  surface: '#1E293B',
   surfaceLight: '#334155',
-  elevated: '#1e293b',
+  elevated: '#1E293B',
 
   // Text
-  text: '#f8fafc',
-  textSecondary: '#94a3b8',
-  textMuted: '#64748b',
+  text: '#F8FAFC',
+  textSecondary: '#94A3B8',
+  textMuted: '#64748B',
 
   // Status
-  success: '#10b981',
-  error: '#ef4444',
-  warning: '#f59e0b',
-  info: '#3b82f6',
+  success: '#10B981',
+  error: '#EF4444',
+  warning: '#F59E0B',
+  info: '#3B82F6',
 
   // Overlay
   overlay: 'rgba(0, 0, 0, 0.7)',
-  glassBackground: 'rgba(30, 41, 59, 0.7)', // Frosted slate
-  glassBorder: 'rgba(255, 255, 255, 0.08)',
+  glassBackground: 'rgba(30, 41, 59, 0.8)',
+  glassBorder: 'rgba(255, 255, 255, 0.1)',
 
   // Status bar
   statusBar: 'light',
@@ -50,45 +51,45 @@ export const DarkTheme = {
 export const LightTheme = {
   mode: 'light',
 
-  // Primary gradient colors
-  primary: '#7c3aed',
-  primaryDark: '#6d28d9',
-  primaryLight: '#a78bfa',
+  // Primary - Violet/Purple
+  primary: '#7C3AED',
+  primaryDark: '#6D28D9',
+  primaryLight: '#8B5CF6',
 
-  // Secondary  
-  secondary: '#0284c7',
-  secondaryDark: '#0369a1',
+  // Secondary - Sky Blue
+  secondary: '#0284C7',
+  secondaryDark: '#0369A1',
 
-  // Accent colors
+  // Accent - Emerald
   accent: '#059669',
-  accentLight: '#10b981',
+  accentLight: '#10B981',
 
-  // Gradient pairs
-  gradientPrimary: ['#6366f1', '#8b5cf6', '#d946ef'], // Same vibrant gradients
-  gradientSecondary: ['#3b82f6', '#0ea5e9', '#38bdf8'],
-  gradientAccent: ['#10b981', '#14b8a6', '#06b6d4'],
+  // Clean 2-stop gradients
+  gradientPrimary: ['#6D28D9', '#8B5CF6'],
+  gradientSecondary: ['#0369A1', '#0EA5E9'],
+  gradientAccent: ['#047857', '#10B981'],
 
-  // Background
-  background: '#f8fafc', // Slate 50
-  surface: '#ffffff',
-  surfaceLight: '#f1f5f9', // Slate 100
-  elevated: '#ffffff',
+  // Background - Clean White/Gray
+  background: '#F8FAFC',
+  surface: '#FFFFFF',
+  surfaceLight: '#F1F5F9',
+  elevated: '#FFFFFF',
 
   // Text
-  text: '#0f172a', // Slate 900
-  textSecondary: '#475569', // Slate 600
-  textMuted: '#94a3b8', // Slate 400
+  text: '#0F172A',
+  textSecondary: '#475569',
+  textMuted: '#94A3B8',
 
   // Status
-  success: '#10b981',
-  error: '#ef4444',
-  warning: '#f59e0b',
-  info: '#3b82f6',
+  success: '#10B981',
+  error: '#EF4444',
+  warning: '#F59E0B',
+  info: '#3B82F6',
 
   // Overlay
   overlay: 'rgba(15, 23, 42, 0.4)',
-  glassBackground: 'rgba(255, 255, 255, 0.8)',
-  glassBorder: 'rgba(255, 255, 255, 0.5)',
+  glassBackground: 'rgba(255, 255, 255, 0.9)',
+  glassBorder: 'rgba(0, 0, 0, 0.05)',
 
   // Status bar
   statusBar: 'dark',

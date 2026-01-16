@@ -3,10 +3,11 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet, Platform, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Platform, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
+import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 
 import HomeScreen from './src/screens/HomeScreen';
 import NotesScreen from './src/screens/NotesScreen';
@@ -17,6 +18,8 @@ import CreditsScreen from './src/screens/CreditsScreen';
 import IntroScreen from './src/screens/IntroScreen';
 import WalkthroughScreen from './src/screens/WalkthroughScreen';
 import FAQScreen from './src/screens/FAQScreen';
+import NoteDetailScreen from './src/screens/NoteDetailScreen';
+import HistoryScreen from './src/screens/HistoryScreen';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { HistoryProvider } from './src/context/HistoryContext';
 import { FoldersProvider } from './src/context/FoldersContext';
@@ -30,6 +33,7 @@ const Stack = createNativeStackNavigator();
 
 function TabNavigator() {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
 
   React.useEffect(() => {
     initAds();
@@ -38,6 +42,7 @@ function TabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        // Using default navigation behavior
         headerStyle: {
           backgroundColor: colors.background,
           elevation: 0,
@@ -48,14 +53,15 @@ function TabNavigator() {
         headerTitleStyle: {
           fontWeight: '700',
           fontSize: 20,
+          fontFamily: 'Inter_700Bold',
         },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopWidth: 1,
           borderTopColor: colors.glassBorder,
-          paddingBottom: 30,
+          paddingBottom: Platform.OS === 'ios' ? 30 : insets.bottom + 10,
           paddingTop: 10,
-          height: 90,
+          height: Platform.OS === 'ios' ? 90 : 60 + insets.bottom + 10,
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
@@ -64,6 +70,7 @@ function TabNavigator() {
           fontWeight: '600',
           marginTop: 2,
         },
+        tabBarHideOnKeyboard: true,
         tabBarIcon: ({ focused, color }) => {
           let iconName;
 
@@ -86,13 +93,18 @@ function TabNavigator() {
             </View>
           );
         },
+        sceneStyle: {
+          backgroundColor: colors.background,
+          elevation: 0,
+          shadowOpacity: 0,
+        },
       })}
     >
       <Tab.Screen
         name="Home"
         component={HomeScreen}
         options={{
-          headerTitle: 'Home',
+          headerTitle: 'Ai Notes',
         }}
       />
       <Tab.Screen
@@ -136,15 +148,15 @@ function MainApp() {
     },
     fonts: {
       regular: {
-        fontFamily: 'System',
+        fontFamily: 'Inter_400Regular',
         fontWeight: '400',
       },
       medium: {
-        fontFamily: 'System',
+        fontFamily: 'Inter_500Medium',
         fontWeight: '500',
       },
       bold: {
-        fontFamily: 'System',
+        fontFamily: 'Inter_700Bold',
         fontWeight: '700',
       },
       heavy: {
@@ -223,12 +235,35 @@ function MainApp() {
             ),
           })}
         />
+        <Stack.Screen
+          name="NoteDetail"
+          component={NoteDetailScreen}
+          options={{
+            headerShown: false,
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="History"
+          component={HistoryScreen}
+          options={{
+            headerShown: false,
+            presentation: 'card',
+          }}
+        />
       </Stack.Navigator>
     </NavigationContainer >
   );
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+
   React.useEffect(() => {
     const setupApp = async () => {
       // Request ATT permission on iOS 14+ before showing ads
@@ -272,6 +307,15 @@ export default function App() {
 
     return cleanup;
   }, []);
+
+  // Show loading while fonts load
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A' }}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaProvider>

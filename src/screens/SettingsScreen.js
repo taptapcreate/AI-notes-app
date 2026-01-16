@@ -10,6 +10,7 @@ import {
     Alert,
     TextInput,
     Platform,
+    Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,6 +18,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../context/ThemeContext';
 import { useUser } from '../context/UserContext';
 import { useHistory } from '../context/HistoryContext';
+import { useStaggerAnimation, AnimatedSection } from '../hooks/useStaggerAnimation';
 
 // App Version
 const APP_VERSION = '1.0.0';
@@ -27,6 +29,9 @@ export default function SettingsScreen({ navigation }) {
     const { getCreditData, recoverAccount } = useUser();
     const credits = getCreditData();
     const styles = createStyles(colors);
+
+    // Stagger animation
+    const { fadeAnims, slideAnims } = useStaggerAnimation(6);
 
     // Recovery code input state
     const [showRecoveryInput, setShowRecoveryInput] = useState(false);
@@ -211,19 +216,19 @@ export default function SettingsScreen({ navigation }) {
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
                 {/* Profile Section */}
-                <View style={styles.profileSection}>
+                <AnimatedSection fadeAnim={fadeAnims[0]} slideAnim={slideAnims[0]} style={styles.profileSection}>
                     <LinearGradient colors={colors.gradientPrimary} style={styles.profileAvatar}>
                         <Ionicons name="person" size={40} color="#fff" />
                     </LinearGradient>
                     <Text style={styles.profileName}>AI Notes</Text>
                     <Text style={styles.profileSubtitle}>Write & Reply</Text>
-                </View>
+                </AnimatedSection>
 
                 {/* Wallet / Status */}
-                <View style={styles.section}>
+                <AnimatedSection fadeAnim={fadeAnims[1]} slideAnim={slideAnims[1]} style={styles.section}>
                     <View style={styles.walletCard}>
                         <LinearGradient
-                            colors={isDark ? ['#312e81', '#4338ca'] : ['#e0e7ff', '#c7d2fe']}
+                            colors={isDark ? ['#1E3A5F', '#2563EB'] : ['#DBEAFE', '#BFDBFE']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                             style={styles.walletBackground}
@@ -254,7 +259,7 @@ export default function SettingsScreen({ navigation }) {
                             </TouchableOpacity>
                         </View>
                     </View>
-                </View>
+                </AnimatedSection>
 
                 {/* Appearance */}
                 <View style={styles.section}>
@@ -510,10 +515,15 @@ const createStyles = (colors) => StyleSheet.create({
     },
     card: {
         backgroundColor: colors.surface,
-        borderRadius: 20,
+        borderRadius: 16,
         overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: colors.glassBorder,
+        borderWidth: 0.5,
+        borderColor: colors.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        elevation: 1,
     },
     settingItem: {
         flexDirection: 'row',
@@ -521,9 +531,9 @@ const createStyles = (colors) => StyleSheet.create({
         padding: 16,
     },
     settingIcon: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
+        width: 40,
+        height: 40,
+        borderRadius: 10,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 14,
@@ -654,20 +664,20 @@ const createStyles = (colors) => StyleSheet.create({
     },
     // Wallet
     walletCard: {
+        backgroundColor: colors.surface,
         marginHorizontal: 4,
-        borderRadius: 20,
+        borderRadius: 16,
         padding: 20,
         overflow: 'hidden',
         position: 'relative',
-        height: 160,
+        height: 150,
         justifyContent: 'space-between',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        shadowColor: "#000",
+        borderWidth: 0,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        elevation: 5,
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 3,
     },
     walletBackground: {
         ...StyleSheet.absoluteFillObject,

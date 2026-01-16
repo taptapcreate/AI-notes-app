@@ -9,6 +9,7 @@ import {
     ActivityIndicator,
     Alert,
     Modal,
+    Animated,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,7 @@ import { useUser } from '../context/UserContext';
 import { generateReply, generateFollowUp, analyzeSentiment, translateText, polishText } from '../services/api';
 import { BannerAd, BannerAdSize, InterstitialAd, AdEventType, adUnitIDs, areAdsEnabled } from '../services/AdService';
 import { useEffect } from 'react';
+import { useStaggerAnimation, AnimatedSection } from '../hooks/useStaggerAnimation';
 
 const REPLY_LENGTHS = ['Brief', 'Standard', 'Detailed'];
 
@@ -113,7 +115,8 @@ const OUTPUT_LANGUAGES = [
 
 export default function ReplyScreen() {
     const { colors } = useTheme();
-    // ... hooks ...
+    // Stagger animation for sections
+    const { fadeAnims, slideAnims } = useStaggerAnimation(5);
 
     // ... existing state ...
 
@@ -635,7 +638,13 @@ export default function ReplyScreen() {
                             multiline
                             value={message}
                             onChangeText={setMessage}
+                            maxLength={2000}
                         />
+                        <View style={styles.charCounter}>
+                            <Text style={[styles.charCountText, message.length > 1800 && { color: colors.warning }]}>
+                                {message.length.toLocaleString()} / 2,000
+                            </Text>
+                        </View>
                     </View>
 
                     {/* Custom Instruction (Optional) */}
@@ -704,19 +713,26 @@ export default function ReplyScreen() {
 
                 {/* Tone */}
                 <View style={styles.section}>
-                    <TouchableOpacity
-                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showTone ? 10 : 0 }}
-                        onPress={() => setShowTone(!showTone)}
-                    >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showTone ? 10 : 0 }}>
+                        <TouchableOpacity
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                            onPress={() => setShowTone(!showTone)}
+                        >
                             <Text style={styles.label}>Tone</Text>
                             <Ionicons name={showTone ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                            <Text style={{ fontSize: 13, color: colors.textSecondary }}>{TONES.find(t => t.id === selectedTone)?.label}</Text>
+                            {showTone && (
+                                <TouchableOpacity onPress={() => setShowToneModal(true)}>
+                                    <Text style={{ fontSize: 13, color: colors.primary, fontWeight: '600' }}>See All</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
-                        <Text style={{ fontSize: 13, color: colors.primary }}>{TONES.find(t => t.id === selectedTone)?.label}</Text>
-                    </TouchableOpacity>
+                    </View>
 
                     {showTone && (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, paddingHorizontal: 16 }}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, paddingRight: 32 }}>
                             <View style={{ flexDirection: 'row', gap: 10, paddingBottom: 4 }}>
                                 {TONES.slice(0, 5).map((tone) => (
                                     <TouchableOpacity
@@ -734,12 +750,7 @@ export default function ReplyScreen() {
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
-                                <TouchableOpacity
-                                    style={[styles.toneBtn]}
-                                    onPress={() => setShowToneModal(true)}
-                                >
-                                    <Text style={[styles.toneText, { color: colors.primary }]}>More...</Text>
-                                </TouchableOpacity>
+
                             </View>
                         </ScrollView>
                     )}
@@ -747,19 +758,26 @@ export default function ReplyScreen() {
 
                 {/* Style */}
                 <View style={styles.section}>
-                    <TouchableOpacity
-                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showStyle ? 10 : 0 }}
-                        onPress={() => setShowStyle(!showStyle)}
-                    >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showStyle ? 10 : 0 }}>
+                        <TouchableOpacity
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                            onPress={() => setShowStyle(!showStyle)}
+                        >
                             <Text style={styles.label}>Style</Text>
                             <Ionicons name={showStyle ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                            <Text style={{ fontSize: 13, color: colors.textSecondary }}>{STYLES.find(s => s.id === selectedStyle)?.label}</Text>
+                            {showStyle && (
+                                <TouchableOpacity onPress={() => setShowStyleModal(true)}>
+                                    <Text style={{ fontSize: 13, color: colors.primary, fontWeight: '600' }}>See All</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
-                        <Text style={{ fontSize: 13, color: colors.primary }}>{STYLES.find(s => s.id === selectedStyle)?.label}</Text>
-                    </TouchableOpacity>
+                    </View>
 
                     {showStyle && (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, paddingHorizontal: 16 }}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, paddingRight: 32 }}>
                             <View style={{ flexDirection: 'row', gap: 10, paddingBottom: 4 }}>
                                 {STYLES.slice(0, 5).map((style) => (
                                     <TouchableOpacity
@@ -772,12 +790,7 @@ export default function ReplyScreen() {
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
-                                <TouchableOpacity
-                                    style={[styles.chip]}
-                                    onPress={() => setShowStyleModal(true)}
-                                >
-                                    <Text style={[styles.chipText, { color: colors.primary }]}>More...</Text>
-                                </TouchableOpacity>
+
                             </View>
                         </ScrollView>
                     )}
@@ -785,19 +798,26 @@ export default function ReplyScreen() {
 
                 {/* Format */}
                 <View style={styles.section} >
-                    <TouchableOpacity
-                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showFormat ? 10 : 0 }}
-                        onPress={() => setShowFormat(!showFormat)}
-                    >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showFormat ? 10 : 0 }}>
+                        <TouchableOpacity
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                            onPress={() => setShowFormat(!showFormat)}
+                        >
                             <Text style={styles.label}>Format</Text>
                             <Ionicons name={showFormat ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                            <Text style={{ fontSize: 13, color: colors.textSecondary }}>{FORMATS.find(f => f.id === selectedFormat)?.label}</Text>
+                            {showFormat && (
+                                <TouchableOpacity onPress={() => setShowFormatModal(true)}>
+                                    <Text style={{ fontSize: 13, color: colors.primary, fontWeight: '600' }}>See All</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
-                        <Text style={{ fontSize: 13, color: colors.primary }}>{FORMATS.find(f => f.id === selectedFormat)?.label}</Text>
-                    </TouchableOpacity>
+                    </View>
 
                     {showFormat && (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, paddingHorizontal: 16 }}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, paddingRight: 32 }}>
                             <View style={{ flexDirection: 'row', gap: 10, paddingBottom: 4 }}>
                                 {FORMATS.slice(0, 5).map((format) => (
                                     <TouchableOpacity
@@ -815,12 +835,7 @@ export default function ReplyScreen() {
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
-                                <TouchableOpacity
-                                    style={[styles.formatBtn]}
-                                    onPress={() => setShowFormatModal(true)}
-                                >
-                                    <Text style={[styles.formatText, { color: colors.primary }]}>More...</Text>
-                                </TouchableOpacity>
+
                             </View>
                         </ScrollView>
                     )}
@@ -828,21 +843,26 @@ export default function ReplyScreen() {
 
                 {/* Output Language */}
                 <View style={styles.section}>
-                    <TouchableOpacity
-                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showLanguage ? 10 : 0 }}
-                        onPress={() => setShowLanguage(!showLanguage)}
-                    >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showLanguage ? 10 : 0 }}>
+                        <TouchableOpacity
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                            onPress={() => setShowLanguage(!showLanguage)}
+                        >
                             <Text style={styles.label}>Output Language</Text>
                             <Ionicons name={showLanguage ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                            <Text style={{ fontSize: 13, color: colors.textSecondary }}>{OUTPUT_LANGUAGES.find(l => l.id === selectedLanguage)?.label}</Text>
+                            {showLanguage && (
+                                <TouchableOpacity onPress={() => setShowLanguageModal(true)}>
+                                    <Text style={{ fontSize: 13, color: colors.primary, fontWeight: '600' }}>See All</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
-                        <Text style={{ fontSize: 13, color: colors.primary, fontWeight: '600' }}>
-                            {OUTPUT_LANGUAGES.find(l => l.id === selectedLanguage)?.label}
-                        </Text>
-                    </TouchableOpacity>
+                    </View>
 
                     {showLanguage && (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, paddingHorizontal: 20 }}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, paddingRight: 32 }}>
                             <View style={{ flexDirection: 'row', gap: 8, paddingBottom: 4 }}>
                                 {OUTPUT_LANGUAGES.slice(0, 5).map((lang) => (
                                     <TouchableOpacity
@@ -855,14 +875,6 @@ export default function ReplyScreen() {
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
-                                <TouchableOpacity
-                                    style={[styles.chip, OUTPUT_LANGUAGES.slice(5).some(l => l.id === selectedLanguage) && styles.chipActive]}
-                                    onPress={() => setShowLanguageModal(true)}
-                                >
-                                    <Text style={[styles.chipText, OUTPUT_LANGUAGES.slice(5).some(l => l.id === selectedLanguage) && styles.chipTextActive]}>
-                                        More...
-                                    </Text>
-                                </TouchableOpacity>
                             </View>
                         </ScrollView>
                     )}
@@ -1253,11 +1265,18 @@ export default function ReplyScreen() {
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.label}>Recent Replies</Text>
-                        {savedReplies.length > 0 && (
-                            <TouchableOpacity onPress={handleClearAllHistory}>
-                                <Text style={styles.clearAllText}>Clear All</Text>
-                            </TouchableOpacity>
-                        )}
+                        <View style={{ flexDirection: 'row', gap: 16 }}>
+                            {savedReplies.length > 0 && (
+                                <TouchableOpacity onPress={() => navigation.navigate('History')}>
+                                    <Text style={[styles.clearAllText, { color: colors.primary }]}>See All</Text>
+                                </TouchableOpacity>
+                            )}
+                            {savedReplies.length > 0 && (
+                                <TouchableOpacity onPress={handleClearAllHistory}>
+                                    <Text style={styles.clearAllText}>Clear All</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
                     </View>
 
                     {savedReplies.length === 0 ? (
@@ -1430,12 +1449,17 @@ const createStyles = (colors) => StyleSheet.create({
         paddingBottom: 32,
     },
     section: {
-        marginBottom: 20,
+        marginBottom: 12,
         backgroundColor: colors.surface,
         borderRadius: 16,
         padding: 16,
         borderWidth: 1,
         borderColor: colors.glassBorder,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
     sectionHeader: {
         flexDirection: 'row',
@@ -1467,13 +1491,25 @@ const createStyles = (colors) => StyleSheet.create({
         backgroundColor: colors.surface,
         borderRadius: 16,
         padding: 14,
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
     },
     messageInput: {
         color: colors.text,
         fontSize: 15,
-        minHeight: 90,
+        minHeight: 80,
         textAlignVertical: 'top',
-        lineHeight: 22,
+        lineHeight: 24,
+        fontFamily: 'Inter_400Regular',
+    },
+    charCounter: {
+        alignItems: 'flex-end',
+        marginTop: 8,
+    },
+    charCountText: {
+        fontSize: 12,
+        color: colors.textMuted,
+        fontFamily: 'Inter_400Regular',
     },
     // Sentiment Badge Styles
     sentimentContainer: {
@@ -1505,6 +1541,7 @@ const createStyles = (colors) => StyleSheet.create({
     // Quick Actions Styles
     quickActionsRow: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         justifyContent: 'flex-end',
         gap: 12,
         marginTop: 12,
@@ -1698,14 +1735,16 @@ const createStyles = (colors) => StyleSheet.create({
     },
     chipRow: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
+        flexWrap: 'nowrap',
         gap: 8,
     },
     chip: {
+        flex: 1,
         backgroundColor: colors.surface,
         paddingVertical: 10,
-        paddingHorizontal: 16,
+        paddingHorizontal: 10,
         borderRadius: 10,
+        alignItems: 'center',
     },
     chipActive: {
         backgroundColor: colors.primary,
