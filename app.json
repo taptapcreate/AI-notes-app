@@ -19,6 +19,7 @@
         "NSMicrophoneUsageDescription": "This app needs microphone access to record voice notes",
         "NSCameraUsageDescription": "This app needs camera access to capture images for note extraction",
         "NSPhotoLibraryUsageDescription": "This app needs photo library access to select images",
+        "NSCalendarsUsageDescription": "Allow AI Notes to access your calendar to suggest meeting preparations.",
         "NSUserTrackingUsageDescription": "This identifier will be used to deliver personalized ads to you."
       }
     },
@@ -54,6 +55,12 @@
         }
       ],
       "expo-secure-store",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow AI Notes to access your calendar to suggest meeting preparations."
+        }
+      ],
       [
         "react-native-google-mobile-ads",
         {

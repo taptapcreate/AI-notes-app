@@ -67,8 +67,8 @@ export default function WalkthroughScreen({ navigation, route }) {
                 if (completeOnboarding) {
                     await completeOnboarding();
                 }
-                // Navigate to Payment first (Paywall), then Home
-                navigation.replace('Payment');
+                // Navigate to MainTabs with Credits tab
+                navigation.replace('MainTabs', { screen: 'Credits' });
             }
         }
     };

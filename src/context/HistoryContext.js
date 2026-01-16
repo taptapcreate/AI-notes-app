@@ -5,11 +5,13 @@ const HistoryContext = createContext();
 
 const NOTES_STORAGE_KEY = '@saved_notes';
 const REPLIES_STORAGE_KEY = '@saved_replies';
+const TEMPLATE_STORAGE_KEY = '@saved_templates';
 const MAX_HISTORY = 20;
 
 export const HistoryProvider = ({ children }) => {
     const [notes, setNotes] = useState([]);
     const [replies, setReplies] = useState([]);
+    const [templates, setTemplates] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Load history on mount
@@ -19,13 +21,15 @@ export const HistoryProvider = ({ children }) => {
 
     const loadHistory = async () => {
         try {
-            const [savedNotes, savedReplies] = await Promise.all([
+            const [savedNotes, savedReplies, savedTemplates] = await Promise.all([
                 AsyncStorage.getItem(NOTES_STORAGE_KEY),
                 AsyncStorage.getItem(REPLIES_STORAGE_KEY),
+                AsyncStorage.getItem(TEMPLATE_STORAGE_KEY),
             ]);
 
             if (savedNotes) setNotes(JSON.parse(savedNotes));
             if (savedReplies) setReplies(JSON.parse(savedReplies));
+            if (savedTemplates) setTemplates(JSON.parse(savedTemplates));
         } catch (error) {
             console.error('Failed to load history:', error);
         } finally {
@@ -73,6 +77,25 @@ export const HistoryProvider = ({ children }) => {
         }
     };
 
+    const addTemplate = async (content, title = 'Saved Template') => {
+        try {
+            const newTemplate = {
+                id: Date.now().toString(),
+                content,
+                title,
+                createdAt: new Date().toISOString(),
+                type: 'template',
+            };
+
+            const updatedTemplates = [newTemplate, ...templates];
+            setTemplates(updatedTemplates);
+            await AsyncStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(updatedTemplates));
+            return newTemplate;
+        } catch (error) {
+            console.error('Failed to save template:', error);
+        }
+    };
+
     const deleteNote = async (id) => {
         try {
             const updatedNotes = notes.filter(note => note.id !== id);
@@ -90,6 +113,16 @@ export const HistoryProvider = ({ children }) => {
             await AsyncStorage.setItem(REPLIES_STORAGE_KEY, JSON.stringify(updatedReplies));
         } catch (error) {
             console.error('Failed to delete reply:', error);
+        }
+    };
+
+    const deleteTemplate = async (id) => {
+        try {
+            const updatedTemplates = templates.filter(t => t.id !== id);
+            setTemplates(updatedTemplates);
+            await AsyncStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(updatedTemplates));
+        } catch (error) {
+            console.error('Failed to delete template:', error);
         }
     };
 
@@ -115,7 +148,8 @@ export const HistoryProvider = ({ children }) => {
         try {
             setNotes([]);
             setReplies([]);
-            await AsyncStorage.multiRemove([NOTES_STORAGE_KEY, REPLIES_STORAGE_KEY]);
+            setTemplates([]);
+            await AsyncStorage.multiRemove([NOTES_STORAGE_KEY, REPLIES_STORAGE_KEY, TEMPLATE_STORAGE_KEY]);
         } catch (error) {
             console.error('Failed to clear history:', error);
         }
@@ -143,12 +177,14 @@ export const HistoryProvider = ({ children }) => {
         <HistoryContext.Provider value={{
             notes,
             replies,
+            templates,
             isLoading,
             addNote,
             addReply,
+            addTemplate,
             deleteNote,
             deleteReply,
-            deleteReply,
+            deleteTemplate,
             clearAllHistory,
             clearAllNotes,
             clearAllReplies,

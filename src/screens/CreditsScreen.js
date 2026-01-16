@@ -48,7 +48,13 @@ const SUBSCRIPTION_PLANS = [
         perWeek: '₹150',
         description: 'Best value for regular users',
         icon: 'infinite-outline',
-        features: ['Extended AI usage', 'No ads', 'Priority processing'],
+        features: [
+            { icon: 'infinite-outline', text: 'Unlimited AI Usage' },
+            { icon: 'ban-outline', text: 'No Ads' },
+            { icon: 'chatbubbles-outline', text: 'Smart Reply' },
+            { icon: 'document-text-outline', text: 'Note Generation' },
+            { icon: 'globe-outline', text: 'Web & YouTube Summarizer' },
+        ],
         recommended: true,
     },
     {
@@ -62,7 +68,13 @@ const SUBSCRIPTION_PLANS = [
         perWeek: '₹199',
         description: 'Try it out',
         icon: 'time-outline',
-        features: ['Weekly AI credits', 'No ads', 'Priority processing'],
+        features: [
+            { icon: 'infinite-outline', text: 'Unlimited AI Usage' },
+            { icon: 'ban-outline', text: 'No Ads' },
+            { icon: 'chatbubbles-outline', text: 'Smart Reply' },
+            { icon: 'document-text-outline', text: 'Note Generation' },
+            { icon: 'globe-outline', text: 'Web & YouTube Summarizer' },
+        ],
         recommended: false,
     },
 ];
@@ -565,140 +577,6 @@ export default function CreditsScreen({ navigation }) {
                     </TouchableOpacity>
                 </View>
 
-                {/* Info Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>How it works</Text>
-                    <View style={styles.infoGrid}>
-                        {LIMIT_INFO.map((info, index) => (
-                            <View key={index} style={styles.infoCard}>
-                                <Ionicons name={info.icon} size={24} color={colors.primary} />
-                                <Text style={styles.infoLabel}>{info.label}</Text>
-                                <Text style={styles.infoCost}>{info.cost}</Text>
-                            </View>
-                        ))}
-                    </View>
-                </View>
-
-                {/* Daily Gifts Section */}
-                <View style={styles.section}>
-                    <View style={styles.dailyGiftsCard}>
-                        <View style={styles.dailyGiftsHeader}>
-                            <Text style={styles.dailyGiftsTitle}>Daily Gifts</Text>
-                            <Text style={styles.dailyGiftsSubtitle}>Check-in daily to get free Credits!</Text>
-                        </View>
-
-                        {streakStatus ? (
-                            <>
-                                <View style={styles.streakGrid}>
-                                    {STREAK_REWARDS.map((reward, index) => {
-                                        const dayNum = index + 1;
-                                        const isCompleted = streakStatus.currentStreak >= dayNum && streakStatus.todayCheckedIn;
-                                        const isToday = streakStatus.nextStreakDay === dayNum && !streakStatus.todayCheckedIn;
-                                        const isPast = streakStatus.currentStreak >= dayNum;
-                                        const isBonus = dayNum === 5;
-
-                                        return (
-                                            <View
-                                                key={dayNum}
-                                                style={[
-                                                    styles.streakDay,
-                                                    isBonus && styles.streakDayBonus,
-                                                    isCompleted && styles.streakDayCompleted,
-                                                    isToday && styles.streakDayToday,
-                                                ]}
-                                            >
-                                                {isCompleted ? (
-                                                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                                                ) : (
-                                                    <View style={styles.streakCreditsContainer}>
-                                                        <Ionicons name="flash" size={14} color={isBonus ? '#FFD700' : colors.primary} />
-                                                        <Text style={[
-                                                            styles.streakCredits,
-                                                            isBonus && styles.streakCreditsBonus
-                                                        ]}>
-                                                            {reward.credits}
-                                                        </Text>
-                                                    </View>
-                                                )}
-                                                <Text style={[
-                                                    styles.streakDayLabel,
-                                                    isCompleted && styles.streakDayLabelCompleted
-                                                ]}>
-                                                    Day {dayNum}
-                                                </Text>
-                                            </View>
-                                        );
-                                    })}
-                                </View>
-
-                                <TouchableOpacity
-                                    style={[
-                                        styles.checkInButton,
-                                        streakStatus.todayCheckedIn && styles.checkInButtonDisabled
-                                    ]}
-                                    onPress={handleDailyCheckIn}
-                                    activeOpacity={0.8}
-                                    disabled={streakStatus.todayCheckedIn || isCheckingIn}
-                                >
-                                    <LinearGradient
-                                        colors={streakStatus.todayCheckedIn ? ['#888', '#666'] : ['#4CAF50', '#2E7D32']}
-                                        style={styles.checkInButtonGradient}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 0 }}
-                                    >
-                                        {isCheckingIn ? (
-                                            <ActivityIndicator color="#fff" size="small" />
-                                        ) : (
-                                            <>
-                                                <Ionicons
-                                                    name={streakStatus.todayCheckedIn ? "checkmark-circle" : "play-circle"}
-                                                    size={20}
-                                                    color="#fff"
-                                                />
-                                                <Text style={styles.checkInButtonText}>
-                                                    {streakStatus.todayCheckedIn ? 'Claimed Today ✓' : 'Watch an Ad & Check-in'}
-                                                </Text>
-                                            </>
-                                        )}
-                                    </LinearGradient>
-                                </TouchableOpacity>
-                            </>
-                        ) : (
-                            <View style={styles.loadingContainer}>
-                                <ActivityIndicator color={colors.primary} />
-                            </View>
-                        )}
-                    </View>
-                </View>
-
-                {/* Recovery Code Section */}
-                {credits.recoveryCode && (
-                    <View style={styles.section}>
-                        <View style={styles.recoveryCard}>
-                            <View style={styles.recoveryHeader}>
-                                <Ionicons name="key-outline" size={24} color={colors.primary} />
-                                <Text style={styles.recoveryTitle}>Your Recovery Code</Text>
-                            </View>
-                            <Text style={styles.recoverySubtitle}>
-                                Save this code to recover your credits on a new device
-                            </Text>
-                            <View style={styles.recoveryCodeContainer}>
-                                <Text style={styles.recoveryCodeText}>{credits.recoveryCode}</Text>
-                            </View>
-                            <TouchableOpacity
-                                style={styles.copyButton}
-                                onPress={async () => {
-                                    await Clipboard.setStringAsync(credits.recoveryCode);
-                                    Alert.alert('Copied!', 'Recovery code copied to clipboard. Save it somewhere safe!');
-                                }}
-                            >
-                                <Ionicons name="copy-outline" size={18} color="#fff" />
-                                <Text style={styles.copyButtonText}>Copy Code</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
-
                 {/* Subscription Plans Section - Only when subscriptions tab */}
                 {activeTab === 'subscriptions' && (
                     <View style={styles.section}>
@@ -819,6 +697,16 @@ export default function CreditsScreen({ navigation }) {
                                             )}
                                         </View>
                                     </View>
+
+                                    {/* Features List */}
+                                    <View style={styles.planFeatures}>
+                                        {plan.features.map((feature, idx) => (
+                                            <View key={idx} style={styles.planFeatureItem}>
+                                                <Ionicons name={feature.icon} size={16} color={colors.success} />
+                                                <Text style={styles.planFeatureText}>{feature.text}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
                                 </TouchableOpacity>
                             );
                         })}
@@ -835,6 +723,35 @@ export default function CreditsScreen({ navigation }) {
                                 </Text>
                             </TouchableOpacity>
                         )}
+
+                        {/* Privacy, Terms & Restore */}
+                        <View style={styles.subscriptionFooter}>
+                            <View style={styles.legalLinksRow}>
+                                <TouchableOpacity
+                                    style={styles.legalLink}
+                                    onPress={() => navigation.navigate('PrivacyPolicy')}
+                                >
+                                    <Text style={styles.legalLinkText}>Privacy Policy</Text>
+                                </TouchableOpacity>
+                                <Text style={styles.legalSeparator}>•</Text>
+                                <TouchableOpacity
+                                    style={styles.legalLink}
+                                    onPress={() => navigation.navigate('TermsOfService')}
+                                >
+                                    <Text style={styles.legalLinkText}>Terms of Service</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <TouchableOpacity
+                                style={styles.restoreButtonInline}
+                                onPress={handleRestorePurchases}
+                                disabled={isPurchasing}
+                            >
+                                <Ionicons name="refresh-outline" size={16} color={colors.primary} />
+                                <Text style={styles.restoreButtonInlineText}>
+                                    {isPurchasing ? 'Processing...' : 'Restore Purchases'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 )}
 
@@ -896,6 +813,14 @@ export default function CreditsScreen({ navigation }) {
                                 </View>
                             </TouchableOpacity>
                         ))}
+
+                        {/* Credits Restore Info */}
+                        <View style={styles.creditsRestoreInfo}>
+                            <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
+                            <Text style={styles.creditsRestoreText}>
+                                Switching to a new device? Use your old device's recovery code to restore your purchased credits.
+                            </Text>
+                        </View>
                     </View>
                 )}
 
@@ -917,17 +842,141 @@ export default function CreditsScreen({ navigation }) {
                     </View>
                 )}
 
-                {/* Restore Purchases */}
-                <TouchableOpacity
-                    style={styles.restoreButton}
-                    onPress={handleRestorePurchases}
-                    disabled={isPurchasing}
-                >
-                    <Ionicons name="refresh-outline" size={18} color={colors.primary} />
-                    <Text style={styles.restoreButtonText}>
-                        {isPurchasing ? 'Processing...' : 'Restore Purchases'}
-                    </Text>
-                </TouchableOpacity>
+                {/* Info Section - HIDDEN FOR NOW
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>How it works</Text>
+                    <View style={styles.infoGrid}>
+                        {LIMIT_INFO.map((info, index) => (
+                            <View key={index} style={styles.infoCard}>
+                                <Ionicons name={info.icon} size={24} color={colors.primary} />
+                                <Text style={styles.infoLabel}>{info.label}</Text>
+                                <Text style={styles.infoCost}>{info.cost}</Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+                */}
+
+                {/* Daily Gifts Section - HIDDEN FOR NOW
+                <View style={styles.section}>
+                    <View style={styles.dailyGiftsCard}>
+                        <View style={styles.dailyGiftsHeader}>
+                            <Text style={styles.dailyGiftsTitle}>Daily Gifts</Text>
+                            <Text style={styles.dailyGiftsSubtitle}>Check-in daily to get free Credits!</Text>
+                        </View>
+
+                        {streakStatus ? (
+                            <>
+                                <View style={styles.streakGrid}>
+                                    {STREAK_REWARDS.map((reward, index) => {
+                                        const dayNum = index + 1;
+                                        const isCompleted = streakStatus.currentStreak >= dayNum && streakStatus.todayCheckedIn;
+                                        const isToday = streakStatus.nextStreakDay === dayNum && !streakStatus.todayCheckedIn;
+                                        const isPast = streakStatus.currentStreak >= dayNum;
+                                        const isBonus = dayNum === 5;
+
+                                        return (
+                                            <View
+                                                key={dayNum}
+                                                style={[
+                                                    styles.streakDay,
+                                                    isBonus && styles.streakDayBonus,
+                                                    isCompleted && styles.streakDayCompleted,
+                                                    isToday && styles.streakDayToday,
+                                                ]}
+                                            >
+                                                {isCompleted ? (
+                                                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                                                ) : (
+                                                    <View style={styles.streakCreditsContainer}>
+                                                        <Ionicons name="flash" size={14} color={isBonus ? '#FFD700' : colors.primary} />
+                                                        <Text style={[
+                                                            styles.streakCredits,
+                                                            isBonus && styles.streakCreditsBonus
+                                                        ]}>
+                                                            {reward.credits}
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                                <Text style={[
+                                                    styles.streakDayLabel,
+                                                    isCompleted && styles.streakDayLabelCompleted
+                                                ]}>
+                                                    Day {dayNum}
+                                                </Text>
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+
+                                <TouchableOpacity
+                                    style={[
+                                        styles.checkInButton,
+                                        streakStatus.todayCheckedIn && styles.checkInButtonDisabled
+                                    ]}
+                                    onPress={handleDailyCheckIn}
+                                    activeOpacity={0.8}
+                                    disabled={streakStatus.todayCheckedIn || isCheckingIn}
+                                >
+                                    <LinearGradient
+                                        colors={streakStatus.todayCheckedIn ? ['#888', '#666'] : ['#4CAF50', '#2E7D32']}
+                                        style={styles.checkInButtonGradient}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                    >
+                                        {isCheckingIn ? (
+                                            <ActivityIndicator color="#fff" size="small" />
+                                        ) : (
+                                            <>
+                                                <Ionicons
+                                                    name={streakStatus.todayCheckedIn ? "checkmark-circle" : "play-circle"}
+                                                    size={20}
+                                                    color="#fff"
+                                                />
+                                                <Text style={styles.checkInButtonText}>
+                                                    {streakStatus.todayCheckedIn ? 'Claimed Today ✓' : 'Watch an Ad & Check-in'}
+                                                </Text>
+                                            </>
+                                        )}
+                                    </LinearGradient>
+                                </TouchableOpacity>
+                            </>
+                        ) : (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator color={colors.primary} />
+                            </View>
+                        )}
+                    </View>
+                </View>
+                */}
+
+                {/* Recovery Code Section */}
+                {credits.recoveryCode && (
+                    <View style={styles.section}>
+                        <View style={styles.recoveryCard}>
+                            <View style={styles.recoveryHeader}>
+                                <Ionicons name="key-outline" size={24} color={colors.primary} />
+                                <Text style={styles.recoveryTitle}>Your Recovery Code</Text>
+                            </View>
+                            <Text style={styles.recoverySubtitle}>
+                                Save this code to recover your credits on a new device
+                            </Text>
+                            <View style={styles.recoveryCodeContainer}>
+                                <Text style={styles.recoveryCodeText}>{credits.recoveryCode}</Text>
+                            </View>
+                            <TouchableOpacity
+                                style={styles.copyButton}
+                                onPress={async () => {
+                                    await Clipboard.setStringAsync(credits.recoveryCode);
+                                    Alert.alert('Copied!', 'Recovery code copied to clipboard. Save it somewhere safe!');
+                                }}
+                            >
+                                <Ionicons name="copy-outline" size={18} color="#fff" />
+                                <Text style={styles.copyButtonText}>Copy Code</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
 
                 {/* Footer Info */}
                 <View style={styles.footer}>
@@ -1292,8 +1341,9 @@ const createStyles = (colors) => StyleSheet.create({
         backgroundColor: colors.surface,
         borderRadius: 20,
         padding: 20,
-        borderWidth: 2,
-        borderColor: '#FFD700',
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
         position: 'relative',
         overflow: 'hidden',
     },
@@ -1302,12 +1352,14 @@ const createStyles = (colors) => StyleSheet.create({
         top: 0,
         left: 0,
         right: 0,
-        backgroundColor: '#FFD700',
+        backgroundColor: colors.primary,
         paddingVertical: 6,
         alignItems: 'center',
+        borderTopLeftRadius: 18,
+        borderTopRightRadius: 18,
     },
     subscriptionBadgeText: {
-        color: '#000',
+        color: '#fff',
         fontSize: 11,
         fontWeight: '800',
         letterSpacing: 1,
@@ -1332,19 +1384,19 @@ const createStyles = (colors) => StyleSheet.create({
     },
     subscriptionName: {
         color: colors.text,
-        fontSize: 16,
-        fontWeight: '600',
-        fontStyle: 'italic',
-    },
-    subscriptionPriceMain: {
-        color: colors.text,
         fontSize: 18,
         fontWeight: '700',
-        marginTop: 2,
+    },
+    subscriptionPriceMain: {
+        color: colors.primary,
+        fontSize: 22,
+        fontWeight: '800',
+        marginTop: 4,
     },
     subscriptionCardRecommended: {
-        borderColor: '#FFD700',
+        borderColor: colors.primary,
         borderWidth: 2,
+        backgroundColor: `${colors.primary}08`,
     },
     subscriptionPriceContainer: {
         alignItems: 'flex-end',
@@ -1357,6 +1409,23 @@ const createStyles = (colors) => StyleSheet.create({
     subscriptionPeriod: {
         color: colors.textMuted,
         fontSize: 12,
+    },
+    planFeatures: {
+        marginTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: colors.glassBorder,
+        paddingTop: 12,
+    },
+    planFeatureItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 8,
+    },
+    planFeatureText: {
+        color: colors.text,
+        fontSize: 14,
+        fontWeight: '500',
     },
     subscriptionCardCurrent: {
         borderColor: colors.primary,
@@ -1422,6 +1491,62 @@ const createStyles = (colors) => StyleSheet.create({
     manageStoreText: {
         fontSize: 14,
         fontWeight: '600',
+    },
+    subscriptionFooter: {
+        marginTop: 20,
+        borderTopWidth: 1,
+        borderTopColor: colors.glassBorder,
+        paddingTop: 16,
+        alignItems: 'center',
+    },
+    legalLinksRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        marginBottom: 12,
+    },
+    legalLink: {
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+    },
+    legalLinkText: {
+        color: colors.textMuted,
+        fontSize: 13,
+        fontWeight: '500',
+    },
+    legalSeparator: {
+        color: colors.textMuted,
+        fontSize: 12,
+    },
+    restoreButtonInline: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 8,
+    },
+    restoreButtonInlineText: {
+        color: colors.primary,
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    creditsRestoreInfo: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 10,
+        marginTop: 20,
+        padding: 14,
+        backgroundColor: colors.surface,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
+    },
+    creditsRestoreText: {
+        flex: 1,
+        color: colors.textMuted,
+        fontSize: 13,
+        lineHeight: 18,
     },
     // Daily Gifts Styles
     dailyGiftsCard: {

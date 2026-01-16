@@ -11,6 +11,7 @@ import {
     Image,
     Dimensions,
     Share,
+    Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,8 +19,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Audio } from 'expo-av';
+import * as Location from 'expo-location';
+import * as Calendar from 'expo-calendar';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { WebView } from 'react-native-webview';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../context/ThemeContext';
 import { useHistory } from '../context/HistoryContext';
@@ -37,6 +42,9 @@ const INPUT_TYPES = [
     { id: 'pdf', icon: 'document', label: 'PDF' },
     { id: 'website', icon: 'globe-outline', label: 'Web' },
     { id: 'youtube', icon: 'logo-youtube', label: 'YouTube' },
+    { id: 'calendar', icon: 'calendar', label: 'Calendar Prep' },
+    { id: 'location', icon: 'location-outline', label: 'Travel Guide' },
+    { id: 'import', icon: 'folder-open-outline', label: 'Import File' },
 ];
 
 const NOTE_LENGTHS = [
@@ -45,13 +53,20 @@ const NOTE_LENGTHS = [
     { id: 'detailed', label: 'Detailed', icon: 'list' },
 ];
 
+
+
 const FORMATS = [
-    { id: 'bullet', label: 'Bullet Points', icon: 'list-outline' },
-    { id: 'meeting', label: 'Meeting Minutes', icon: 'people-outline' },
-    { id: 'study', label: 'Study Guide', icon: 'school-outline' },
-    { id: 'todo', label: 'To-Do List', icon: 'checkbox-outline' },
-    { id: 'summary', label: 'Summary', icon: 'document-text-outline' },
-    { id: 'blog', label: 'Blog Post', icon: 'newspaper-outline' },
+    { id: 'bullet', label: 'Bullet Points', icon: 'list-outline', desc: 'Clean, hierarchical list' },
+    { id: 'meeting', label: 'Meeting Minutes', icon: 'people-outline', desc: 'Attendees, decisions, actions' },
+    { id: 'study', label: 'Study Guide', icon: 'school-outline', desc: 'Concepts, definitions, review' },
+    { id: 'todo', label: 'To-Do List', icon: 'checkbox-outline', desc: 'Prioritized tasks & checkboxes' },
+    { id: 'summary', label: 'Summary', icon: 'document-text-outline', desc: 'Executive overview & findings' },
+    { id: 'blog', label: 'Blog Post', icon: 'newspaper-outline', desc: 'Title, intro, body, conclusion' },
+    { id: 'eli5', label: 'ELI5', icon: 'happy-outline', desc: 'Explain Like I\'m 5 (Simple)' },
+    { id: 'quiz', label: 'Quiz Gen', icon: 'help-circle-outline', desc: 'Generate 5 study questions' },
+    { id: 'recipe', label: 'Recipe', icon: 'restaurant-outline', desc: 'Extract ingredients & steps' },
+    { id: 'code', label: 'Code Explainer', icon: 'code-slash-outline', desc: 'Break down code snippets' },
+    { id: 'email', label: 'Email Draft', icon: 'mail-outline', desc: 'Turn notes into an email' },
 ];
 
 const TONES = [
@@ -82,36 +97,6 @@ export default function NotesScreen() {
     const [interstitial, setInterstitial] = useState(null);
     const [interstitialLoaded, setInterstitialLoaded] = useState(false);
 
-    // const { hasProSubscription } = getCreditData();
-
-    // Initialize Interstitial Ad - DISABLED TO FIX CRASH
-    /*
-    useEffect(() => {
-        if (!areAdsEnabled || hasProSubscription) return;
-
-        const interstitialAd = InterstitialAd.createForAdRequest(adUnitIDs.interstitial, {
-            requestNonPersonalizedAdsOnly: true,
-        });
-
-        const unsubscribeLoaded = interstitialAd.addAdEventListener(AdEventType.LOADED, () => {
-            setInterstitialLoaded(true);
-        });
-
-        const unsubscribeClosed = interstitialAd.addAdEventListener(AdEventType.CLOSED, () => {
-            setInterstitialLoaded(false);
-            interstitialAd.load(); // Preload next one
-        });
-
-        interstitialAd.load();
-        setInterstitial(interstitialAd);
-
-        return () => {
-            unsubscribeLoaded();
-            unsubscribeClosed();
-        };
-    }, [hasProSubscription]);
-    */
-
     // Folder state
     const [selectedFolder, setSelectedFolder] = useState('general');
 
@@ -136,6 +121,73 @@ export default function NotesScreen() {
     const [format, setFormat] = useState('bullet');
     const [tone, setTone] = useState('professional');
     const [language, setLanguage] = useState('English');
+    const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+    const [showTemplates, setShowTemplates] = useState(true);
+    const [showLength, setShowLength] = useState(true);
+
+    // Template Modal State
+    const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+    const [templateSearch, setTemplateSearch] = useState('');
+
+
+
+    // Follow-up State
+    const [followUpQuestion, setFollowUpQuestion] = useState('');
+    const [followUpResponse, setFollowUpResponse] = useState('');
+    const [isFollowUpLoading, setIsFollowUpLoading] = useState(false);
+
+    // Calendar State
+    const [events, setEvents] = useState([]);
+    const [showEventModal, setShowEventModal] = useState(false);
+    const [selectedEvent, setSelectedEvent] = useState(null);
+
+    // Visuals State
+    const [showVisualsModal, setShowVisualsModal] = useState(false);
+    const [mermaidCode, setMermaidCode] = useState('');
+    const [isVisualizing, setIsVisualizing] = useState(false);
+
+    const handleCalendarImport = async () => {
+        try {
+            const { status } = await Calendar.requestCalendarPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission needed', 'We need calendar access to find your meetings.');
+                return;
+            }
+
+            const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+            const calendarIds = calendars.map(c => c.id);
+
+            const startDate = new Date();
+            const endDate = new Date();
+            endDate.setDate(startDate.getDate() + 7); // Next 7 days
+
+            const upcomingEvents = await Calendar.getEventsAsync(calendarIds, startDate, endDate);
+
+            // Filter and sort
+            const sortedEvents = upcomingEvents
+                .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
+                .map(e => ({
+                    id: e.id,
+                    title: e.title,
+                    startDate: e.startDate,
+                    endDate: e.endDate,
+                    location: e.location,
+                    notes: e.notes
+                }));
+
+            if (sortedEvents.length === 0) {
+                Alert.alert('No Events', 'No upcoming events found in the next 7 days.');
+                return;
+            }
+
+            setEvents(sortedEvents);
+            setShowEventModal(true);
+        } catch (error) {
+            console.error('Calendar Error:', error);
+            Alert.alert('Error', 'Failed to fetch calendar events.');
+        }
+    };
+
 
 
     const pickImage = async () => {
@@ -210,6 +262,63 @@ export default function NotesScreen() {
         }
     };
 
+    const handleLocationGuide = async () => {
+        try {
+            let { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission to access location was denied');
+                return;
+            }
+
+            setIsLoading(true);
+            let location = await Location.getCurrentPositionAsync({});
+            let address = await Location.reverseGeocodeAsync({
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude
+            });
+
+            if (address && address.length > 0) {
+                const place = address[0];
+                const locationString = `${place.city || place.subregion}, ${place.country}`;
+                setInputType('text');
+                setTextInput(`Create a comprehensive travel guide for ${locationString}. Include top attractions, local food recommendations, and cultural tips.`);
+                Alert.alert("Location Found!", `Ready to generate guide for ${locationString}`);
+            }
+            setIsLoading(false);
+        } catch (error) {
+            console.error(error);
+            setIsLoading(false);
+            Alert.alert("Error", "Could not fetch location");
+        }
+    };
+
+    const handleFileImport = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: ['text/plain', 'text/markdown'],
+                copyToCacheDirectory: true,
+            });
+
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                const file = result.assets[0];
+                const fileContent = await FileSystem.readAsStringAsync(file.uri);
+                setInputType('text');
+                setTextInput(fileContent);
+                Alert.alert("File Imported!", "Content loaded into text area.");
+            }
+        } catch (err) {
+            console.error('Failed to read file', err);
+            Alert.alert("Error", "Could not read file");
+        }
+    };
+
+    const handleEventSelect = (event) => {
+        const details = `Meeting: ${event.title}\nTime: ${new Date(event.startDate).toLocaleString()}\nLocation: ${event.location || 'Online'}\nNotes: ${event.notes || 'None'}`;
+        setTextInput(details);
+        setSelectedEvent(event);
+        setShowEventModal(false);
+    };
+
     const handleGenerate = async () => {
         if (!checkAvailability(1)) {
             Alert.alert(
@@ -229,10 +338,20 @@ export default function NotesScreen() {
         try {
             let content = '';
 
+            let apiType = inputType;
+            // Map custom types to 'text' for backend compatibility if needed, 
+            // or ensure backend supports them. Assuming backend treats 'text' generically.
+            if (['calendar', 'location', 'import'].includes(inputType)) {
+                apiType = 'text';
+            }
+
             switch (inputType) {
                 case 'text':
+                case 'calendar':
+                case 'location':
+                case 'import':
                     if (!textInput.trim()) {
-                        Alert.alert('Error', 'Please enter some text');
+                        Alert.alert('Error', 'Please enter some text or select an item');
                         setIsLoading(false);
                         return;
                     }
@@ -280,8 +399,8 @@ export default function NotesScreen() {
             // Save content for regeneration
             setLastContent({ type: inputType, content });
 
-            console.log(`[DEBUG] Generating notes for Type: ${inputType}, Content: ${content}`);
-            const result = await generateNotes(inputType, content, { noteLength, format, tone, language });
+            console.log(`[DEBUG] Generating notes for Type: ${apiType}, Content: ${content}`);
+            const result = await generateNotes(apiType, content, { noteLength, format, tone, language, isPro: hasProSubscription });
 
             // Deduct credit only on success
             await useCredits(1);
@@ -354,6 +473,50 @@ export default function NotesScreen() {
     const copyNotes = async () => {
         await Clipboard.setStringAsync(generatedNotes);
         Alert.alert('Copied!', 'Notes copied to clipboard');
+    };
+
+    const exportAsText = async () => {
+        if (!generatedNotes) return;
+
+        try {
+            const timestamp = new Date().toISOString().split('T')[0];
+            const filename = `AI_Notes_${timestamp}.txt`;
+            const fileUri = `${FileSystem.documentDirectory}${filename}`;
+
+            await FileSystem.writeAsStringAsync(fileUri, generatedNotes);
+
+            if (await Sharing.isAvailableAsync()) {
+                await Sharing.shareAsync(fileUri, {
+                    mimeType: 'text/plain',
+                    dialogTitle: 'Export Notes as Text'
+                });
+            }
+        } catch (error) {
+            console.error('Export error:', error);
+            Alert.alert('Error', 'Failed to export file');
+        }
+    };
+
+    const exportAsMarkdown = async () => {
+        if (!generatedNotes) return;
+
+        try {
+            const timestamp = new Date().toISOString().split('T')[0];
+            const filename = `AI_Notes_${timestamp}.md`;
+            const fileUri = `${FileSystem.documentDirectory}${filename}`;
+
+            await FileSystem.writeAsStringAsync(fileUri, generatedNotes);
+
+            if (await Sharing.isAvailableAsync()) {
+                await Sharing.shareAsync(fileUri, {
+                    mimeType: 'text/markdown',
+                    dialogTitle: 'Export Notes as Markdown'
+                });
+            }
+        } catch (error) {
+            console.error('Export error:', error);
+            Alert.alert('Error', 'Failed to export file');
+        }
     };
 
     const handleFollowUp = async () => {
@@ -512,6 +675,38 @@ export default function NotesScreen() {
                         )}
                     </View>
                 );
+            case 'calendar':
+                return (
+                    <View style={styles.inputCard}>
+                        {selectedEvent ? (
+                            <View style={styles.pdfPreview}>
+                                <LinearGradient colors={colors.gradientFormatted} style={styles.pdfIcon}>
+                                    <Ionicons name="calendar" size={28} color="#fff" />
+                                </LinearGradient>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.pdfName} numberOfLines={1}>{selectedEvent.title}</Text>
+                                    <Text style={styles.uploadSubtext}>
+                                        {new Date(selectedEvent.startDate).toLocaleDateString()}
+                                    </Text>
+                                </View>
+                                <TouchableOpacity onPress={() => { setSelectedEvent(null); setTextInput(''); }}>
+                                    <Text style={styles.pdfRemoveText}>Change</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <TouchableOpacity style={styles.uploadArea} onPress={handleCalendarImport}>
+                                <LinearGradient colors={colors.gradientFormatted} style={styles.uploadIcon}>
+                                    <Ionicons name="calendar-outline" size={28} color="#fff" />
+                                </LinearGradient>
+                                <Text style={styles.uploadText}>Select Meeting</Text>
+                                <Text style={styles.uploadSubtext}>Import from Calendar</Text>
+                            </TouchableOpacity>
+                        )}
+                        <Text style={styles.linkHint}>
+                            We'll analyze the event details and create a prep brief.
+                        </Text>
+                    </View>
+                );
             case 'website':
             case 'youtube':
                 return (
@@ -549,11 +744,55 @@ export default function NotesScreen() {
                         </Text>
                     </View>
                 );
+
+            case 'location':
+                return (
+                    <View style={styles.inputCard}>
+                        <TouchableOpacity style={styles.uploadArea} onPress={handleLocationGuide}>
+                            <LinearGradient colors={['#4F46E5', '#4338CA']} style={styles.uploadIcon}>
+                                <Ionicons name="location" size={28} color="#fff" />
+                            </LinearGradient>
+                            <Text style={styles.uploadText}>Get Travel Guide</Text>
+                            <Text style={styles.uploadSubtext}>Auto-detects your city & creates a guide</Text>
+                        </TouchableOpacity>
+                    </View>
+                );
+            case 'import':
+                return (
+                    <View style={styles.inputCard}>
+                        <TouchableOpacity style={styles.uploadArea} onPress={handleFileImport}>
+                            <LinearGradient colors={['#059669', '#047857']} style={styles.uploadIcon}>
+                                <Ionicons name="document-text" size={28} color="#fff" />
+                            </LinearGradient>
+                            <Text style={styles.uploadText}>Import Text File</Text>
+                            <Text style={styles.uploadSubtext}>Pick a .txt or .md file to summarize</Text>
+                        </TouchableOpacity>
+                    </View>
+                );
         }
     };
 
 
     // Markdown styles for the output
+    const handleVisualize = async () => {
+        if (!generatedNotes) return;
+
+        setIsVisualizing(true);
+        try {
+            const prompt = `Create a mermaid.js diagram (graph TD or mindmap) to visualize the following notes. Return ONLY the raw mermaid code, no markdown backticks or explanations:\n\n${generatedNotes}`;
+            const result = await generateNotes('text', prompt, { noteLength: 'brief' });
+
+            // Clean up result just in case
+            const cleanCode = result.replace(/```mermaid/g, '').replace(/```/g, '').trim();
+            setMermaidCode(cleanCode);
+            setShowVisualsModal(true);
+        } catch (error) {
+            Alert.alert('Error', 'Failed to generate diagram');
+        } finally {
+            setIsVisualizing(false);
+        }
+    };
+
     const markdownStyles = {
         body: {
             color: colors.text,
@@ -690,92 +929,349 @@ export default function NotesScreen() {
                 {/* Input Area */}
                 {renderInputArea()}
 
-                {/* Note Length Selector */}
-                <View style={styles.lengthSection}>
-                    <Text style={styles.lengthLabel}>Note Length</Text>
-                    <View style={styles.lengthRow}>
-                        {NOTE_LENGTHS.map((length) => (
-                            <TouchableOpacity
-                                key={length.id}
-                                style={[styles.lengthBtn, noteLength === length.id && styles.lengthBtnActive]}
-                                onPress={() => setNoteLength(length.id)}
-                            >
-                                <Ionicons
-                                    name={length.icon}
-                                    size={16}
-                                    color={noteLength === length.id ? '#fff' : colors.textMuted}
-                                />
-                                <Text style={[styles.lengthText, noteLength === length.id && styles.lengthTextActive]}>
-                                    {length.label}
-                                </Text>
+                {/* Template Carousel (Format) */}
+                <View style={styles.section}>
+                    <TouchableOpacity
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showTemplates ? 10 : 0 }}
+                        onPress={() => setShowTemplates(!showTemplates)}
+                    >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={styles.sectionTitle}>Chose Template</Text>
+                            <Ionicons name={showTemplates ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
+                        </View>
+                        {showTemplates && (
+                            <TouchableOpacity onPress={() => setShowTemplatesModal(true)}>
+                                <Text style={{ color: colors.primary, fontWeight: '600' }}>See All</Text>
                             </TouchableOpacity>
-                        ))}
-                    </View>
+                        )}
+                    </TouchableOpacity>
+
+                    {showTemplates && (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, paddingHorizontal: 20 }}>
+                            <View style={{ flexDirection: 'row', gap: 12, paddingBottom: 4 }}>
+                                {FORMATS.slice(0, 5).map((item) => (
+                                    <TouchableOpacity
+                                        key={item.id}
+                                        style={[
+                                            styles.templateCard,
+                                            format === item.id && styles.templateCardActive
+                                        ]}
+                                        onPress={() => setFormat(item.id)}
+                                        activeOpacity={0.9}
+                                    >
+                                        <LinearGradient
+                                            colors={format === item.id ? colors.gradientPrimary : [colors.surface, colors.surface]}
+                                            style={styles.templateIconContainer}
+                                        >
+                                            <Ionicons
+                                                name={item.icon}
+                                                size={24}
+                                                color={format === item.id ? '#fff' : colors.primary}
+                                            />
+                                        </LinearGradient>
+                                        <Text style={[styles.templateTitle, format === item.id && styles.templateTitleActive]}>
+                                            {item.label}
+                                        </Text>
+                                        <Text style={[styles.templateDesc, format === item.id && styles.templateDescActive]} numberOfLines={2}>
+                                            {item.desc}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                                {/* More Button */}
+                                <TouchableOpacity
+                                    style={[styles.templateCard, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surfaceLight }]}
+                                    onPress={() => setShowTemplatesModal(true)}
+                                    activeOpacity={0.9}
+                                >
+                                    <View style={{
+                                        width: 44, height: 44, borderRadius: 22, backgroundColor: colors.background,
+                                        justifyContent: 'center', alignItems: 'center', marginBottom: 8
+                                    }}>
+                                        <Ionicons name="apps" size={24} color={colors.primary} />
+                                    </View>
+                                    <Text style={[styles.templateTitle, { color: colors.primary }]}>More...</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </ScrollView>
+                    )}
                 </View>
 
+                {/* Templates Selection Modal */}
+                <Modal
+                    visible={showTemplatesModal}
+                    transparent={true}
+                    animationType="slide"
+                    onRequestClose={() => setShowTemplatesModal(false)}
+                >
+                    <TouchableOpacity
+                        style={styles.modalOverlay}
+                        activeOpacity={1}
+                        onPress={() => setShowTemplatesModal(false)}
+                    >
+                        <View style={[styles.modalContent, { height: '80%' }]}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>Select Template</Text>
+                                <TouchableOpacity onPress={() => setShowTemplatesModal(false)}>
+                                    <Ionicons name="close" size={24} color={colors.text} />
+                                </TouchableOpacity>
+                            </View>
 
-                {/* Format Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Format</Text>
-                    <View style={styles.wrapRow}>
-                        {FORMATS.map((item) => (
-                            <TouchableOpacity
-                                key={item.id}
-                                style={[styles.optionBtn, format === item.id && styles.optionBtnActive]}
-                                onPress={() => setFormat(item.id)}
-                            >
-                                <Ionicons
-                                    name={item.icon}
-                                    size={16}
-                                    color={format === item.id ? colors.primary : colors.textSecondary}
+                            {/* Search Bar */}
+                            <View style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                backgroundColor: colors.surface + '80',
+                                borderRadius: 12,
+                                paddingHorizontal: 12,
+                                marginHorizontal: 20,
+                                marginBottom: 16,
+                                borderWidth: 1,
+                                borderColor: colors.border
+                            }}>
+                                <Ionicons name="search" size={20} color={colors.textSecondary} />
+                                <TextInput
+                                    style={{
+                                        flex: 1,
+                                        height: 44,
+                                        marginLeft: 8,
+                                        fontSize: 16,
+                                        color: colors.text
+                                    }}
+                                    placeholder="Search templates..."
+                                    placeholderTextColor={colors.textMuted}
+                                    value={templateSearch}
+                                    onChangeText={setTemplateSearch}
+                                    autoCorrect={false}
                                 />
-                                <Text style={[styles.optionText, format === item.id && styles.optionTextActive]}>
-                                    {item.label}
-                                </Text>
+                                {templateSearch.length > 0 && (
+                                    <TouchableOpacity onPress={() => setTemplateSearch('')}>
+                                        <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+
+                            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                                    {FORMATS
+                                        .filter(item =>
+                                            item.label.toLowerCase().includes(templateSearch.toLowerCase()) ||
+                                            item.desc.toLowerCase().includes(templateSearch.toLowerCase())
+                                        )
+                                        .map((item) => (
+                                            <TouchableOpacity
+                                                key={item.id}
+                                                style={[
+                                                    styles.templateCard,
+                                                    { width: '48%', marginBottom: 12 }, // Grid layout
+                                                    format === item.id && styles.templateCardActive
+                                                ]}
+                                                onPress={() => {
+                                                    setFormat(item.id);
+                                                    setShowTemplatesModal(false);
+                                                    setTemplateSearch('');
+                                                }}
+                                                activeOpacity={0.9}
+                                            >
+                                                <LinearGradient
+                                                    colors={format === item.id ? colors.gradientPrimary : [colors.surface, colors.surface]}
+                                                    style={styles.templateIconContainer}
+                                                >
+                                                    <Ionicons
+                                                        name={item.icon}
+                                                        size={24}
+                                                        color={format === item.id ? '#fff' : colors.primary}
+                                                    />
+                                                </LinearGradient>
+                                                <Text style={[styles.templateTitle, format === item.id && styles.templateTitleActive]}>
+                                                    {item.label}
+                                                </Text>
+                                                <Text style={[styles.templateDesc, format === item.id && styles.templateDescActive]} numberOfLines={2}>
+                                                    {item.desc}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                </View>
+                            </ScrollView>
+                        </View>
+                    </TouchableOpacity>
+                </Modal>
+
+                {/* Event Selection Modal */}
+                <Modal
+                    visible={showEventModal}
+                    transparent={true}
+                    animationType="slide"
+                    onRequestClose={() => setShowEventModal(false)}
+                >
+                    <TouchableOpacity
+                        style={styles.modalOverlay}
+                        activeOpacity={1}
+                        onPress={() => setShowEventModal(false)}
+                    >
+                        <View style={[styles.modalContent, { maxHeight: '70%' }]}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>Select Meeting</Text>
+                                <TouchableOpacity onPress={() => setShowEventModal(false)}>
+                                    <Ionicons name="close" size={24} color={colors.text} />
+                                </TouchableOpacity>
+                            </View>
+                            <ScrollView contentContainerStyle={{ padding: 20 }}>
+                                {events.map((event) => (
+                                    <TouchableOpacity
+                                        key={event.id}
+                                        style={{
+                                            padding: 16,
+                                            borderBottomWidth: 1,
+                                            borderBottomColor: colors.border,
+                                            backgroundColor: colors.surface,
+                                            marginBottom: 8,
+                                            borderRadius: 12
+                                        }}
+                                        onPress={() => handleEventSelect(event)}
+                                    >
+                                        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 4 }}>{event.title}</Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                            <Ionicons name="time-outline" size={14} color={colors.primary} />
+                                            <Text style={{ color: colors.textMuted, fontSize: 14 }}>
+                                                {new Date(event.startDate).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}
+                                            </Text>
+                                        </View>
+                                        {event.location && (
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                <Ionicons name="location-outline" size={14} color={colors.textMuted} />
+                                                <Text style={{ color: colors.textMuted, fontSize: 13 }} numberOfLines={1}>{event.location}</Text>
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    </TouchableOpacity>
+                </Modal>
+
+                {/* Visuals Modal */}
+                <Modal
+                    visible={showVisualsModal}
+                    animationType="slide"
+                    onRequestClose={() => setShowVisualsModal(false)}
+                >
+                    <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: 50 }}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Visual Summary</Text>
+                            <TouchableOpacity onPress={() => setShowVisualsModal(false)}>
+                                <Ionicons name="close" size={24} color={colors.text} />
                             </TouchableOpacity>
-                        ))}
+                        </View>
+                        <WebView
+                            originWhitelist={['*']}
+                            source={{
+                                html: `
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+                                <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+                                <script>
+                                    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+                                </script>
+                                <style>
+                                    body { font-family: sans-serif; padding: 20px; background: ${colors.background === '#1A1A1A' ? '#1A1A1A' : '#ffffff'}; }
+                                    .mermaid { display: flex; justify-content: center; }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="mermaid">
+                                    ${mermaidCode}
+                                </div>
+                            </body>
+                            </html>
+                        `}}
+                            style={{ flex: 1, backgroundColor: 'transparent' }}
+                        />
                     </View>
+                </Modal>
+
+                {/* Detail Level (Note Length) - Segmented Control */}
+                <View style={styles.section}>
+                    <TouchableOpacity
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showLength ? 10 : 0 }}
+                        onPress={() => setShowLength(!showLength)}
+                    >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={styles.sectionTitle}>Detail Level</Text>
+                            <Ionicons name={showLength ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
+                        </View>
+                        {!showLength && (
+                            <Text style={{ fontSize: 13, color: colors.primary }}>{NOTE_LENGTHS.find(l => l.id === noteLength)?.label}</Text>
+                        )}
+                    </TouchableOpacity>
+
+                    {showLength && (
+                        <View style={styles.segmentedControl}>
+                            {NOTE_LENGTHS.map((length) => (
+                                <TouchableOpacity
+                                    key={length.id}
+                                    style={[styles.segmentBtn, noteLength === length.id && styles.segmentBtnActive]}
+                                    onPress={() => setNoteLength(length.id)}
+                                >
+                                    <Text style={[styles.segmentText, noteLength === length.id && styles.segmentTextActive]}>
+                                        {length.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
                 </View>
 
-                {/* Tone Section */}
+                {/* Advanced Settings (Tone & Language) */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Tone</Text>
-                    <View style={styles.wrapRow}>
-                        {TONES.map((item) => (
-                            <TouchableOpacity
-                                key={item.id}
-                                style={[styles.optionBtn, tone === item.id && styles.optionBtnActive]}
-                                onPress={() => setTone(item.id)}
-                            >
-                                <Ionicons
-                                    name={item.icon}
-                                    size={16}
-                                    color={tone === item.id ? colors.primary : colors.textSecondary}
-                                />
-                                <Text style={[styles.optionText, tone === item.id && styles.optionTextActive]}>
-                                    {item.label}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
+                    <TouchableOpacity
+                        style={styles.advancedHeader}
+                        onPress={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                    >
+                        <Text style={styles.sectionTitle}>Advanced Settings</Text>
+                        <Ionicons
+                            name={showAdvancedSettings ? 'chevron-up' : 'chevron-down'}
+                            size={20}
+                            color={colors.textMuted}
+                        />
+                    </TouchableOpacity>
 
-                {/* Language Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Language</Text>
-                    <View style={styles.wrapRow}>
-                        {LANGUAGES.map((item) => (
-                            <TouchableOpacity
-                                key={item.id}
-                                style={[styles.optionBtn, language === item.id && styles.optionBtnActive]}
-                                onPress={() => setLanguage(item.id)}
-                            >
-                                <Text style={[styles.optionText, language === item.id && styles.optionTextActive]}>
-                                    {item.label}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                    {showAdvancedSettings && (
+                        <View style={styles.advancedContent}>
+                            {/* Tone */}
+                            <Text style={styles.subLabel}>Tone</Text>
+                            <View style={styles.wrapRow}>
+                                {TONES.map((item) => (
+                                    <TouchableOpacity
+                                        key={item.id}
+                                        style={[styles.optionBtn, tone === item.id && styles.optionBtnActive]}
+                                        onPress={() => setTone(item.id)}
+                                    >
+                                        <Text style={[styles.optionText, tone === item.id && styles.optionTextActive]}>
+                                            {item.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            {/* Language */}
+                            <Text style={[styles.subLabel, { marginTop: 16 }]}>Language</Text>
+                            <View style={styles.wrapRow}>
+                                {LANGUAGES.map((item) => (
+                                    <TouchableOpacity
+                                        key={item.id}
+                                        style={[styles.optionBtn, language === item.id && styles.optionBtnActive]}
+                                        onPress={() => setLanguage(item.id)}
+                                    >
+                                        <Text style={[styles.optionText, language === item.id && styles.optionTextActive]}>
+                                            {item.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+                    )}
                 </View>
 
                 {/* Folder Selector */}
@@ -849,6 +1345,22 @@ export default function NotesScreen() {
                                 <TouchableOpacity style={styles.actionBtn} onPress={copyNotes}>
                                     <Ionicons name="copy-outline" size={18} color={colors.accent} />
                                     <Text style={[styles.actionBtnText, { color: colors.accent }]}>Copy</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.actionBtn} onPress={handleVisualize} disabled={isVisualizing}>
+                                    {isVisualizing ? (
+                                        <ActivityIndicator size="small" color={colors.primary} />
+                                    ) : (
+                                        <Ionicons name="git-network-outline" size={18} color={colors.primary} />
+                                    )}
+                                    <Text style={[styles.actionBtnText, { color: colors.primary }]}>Visualize</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.actionBtn} onPress={exportAsText}>
+                                    <Ionicons name="document-text-outline" size={18} color={colors.secondary} />
+                                    <Text style={[styles.actionBtnText, { color: colors.secondary }]}>Export .txt</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.actionBtn} onPress={exportAsMarkdown}>
+                                    <Ionicons name="logo-markdown" size={18} color={colors.accent} />
+                                    <Text style={[styles.actionBtnText, { color: colors.accent }]}>Export .md</Text>
                                 </TouchableOpacity>
                             </View>
 
@@ -1473,5 +1985,136 @@ const createStyles = (colors) => StyleSheet.create({
     },
     deleteBtn: {
         padding: 8,
+    },
+    // NEW STYLES for Document Generator UI
+    templateCard: {
+        width: 140,
+        height: 160,
+        backgroundColor: colors.surface,
+        borderRadius: 16,
+        padding: 12,
+        marginVertical: 4, // Added margin to prevent clipping
+        marginRight: 8,
+        borderWidth: 1.5, // Increased base border width
+        borderColor: colors.border,
+        justifyContent: 'space-between',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    templateCardActive: {
+        borderColor: colors.primary,
+        borderWidth: 2, // Thicker border
+        backgroundColor: `${colors.primary}08`,
+        transform: [{ scale: 1.02 }],
+    },
+    templateIconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    templateTitle: {
+        color: colors.text,
+        fontSize: 15,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    templateTitleActive: {
+        color: colors.primary,
+    },
+    templateDesc: {
+        color: colors.textSecondary,
+        fontSize: 12,
+        lineHeight: 16,
+    },
+    templateDescActive: {
+        color: colors.text,
+    },
+    // Segmented Control
+    segmentedControl: {
+        flexDirection: 'row',
+        backgroundColor: colors.surface,
+        borderRadius: 12,
+        padding: 4,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    segmentBtn: {
+        flex: 1,
+        paddingVertical: 10,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    segmentBtnActive: {
+        backgroundColor: colors.primary,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+        elevation: 2,
+    },
+    segmentText: {
+        color: colors.textSecondary,
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    segmentTextActive: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+    // Advanced Settings
+    advancedHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+        marginBottom: 12,
+    },
+    advancedContent: {
+        paddingTop: 8,
+    },
+    subLabel: {
+        color: colors.text,
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 10,
+        marginLeft: 4,
+    },
+    // Modal Styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: colors.surface,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        paddingTop: 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 10,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        marginBottom: 20,
+    },
+    modalTitle: {
+        color: colors.text,
+        fontSize: 20,
+        fontWeight: '700',
     },
 });
