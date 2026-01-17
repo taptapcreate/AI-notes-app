@@ -634,188 +634,252 @@ export default function CreditsScreen({ navigation }) {
                                         isCurrentPlan && styles.subscriptionCardCurrent,
                                         plan.recommended && !isCurrentPlan && styles.subscriptionCardRecommended
                                     ]}
-                                    {/* Action Button */}
                                     onPress={handlePlanPress}
                                     activeOpacity={0.8}
-                                    disabled={isPurchasing || isCurrentPlan} // Disable touch if current plan
+                                    disabled={isPurchasing || isCurrentPlan}
                                 >
-                                    {/* ... existing code ... */}
-
-                                    {/* Inside subscriptionPriceContainer */}
-                                    {isCurrentPlan && (
+                                    {purchasingId === plan.id && (
                                         <View style={{
-                                            flexDirection: 'row',
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            right: 0,
+                                            bottom: 0,
+                                            backgroundColor: 'rgba(0,0,0,0.5)',
+                                            justifyContent: 'center',
                                             alignItems: 'center',
-                                            backgroundColor: 'rgba(16, 185, 129, 0.1)', // Light green bg
-                                            paddingHorizontal: 10,
-                                            paddingVertical: 4,
-                                            borderRadius: 12
+                                            zIndex: 10,
+                                            borderRadius: 16
                                         }}>
-                                            <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                                            <Text style={{ color: '#10B981', fontSize: 13, fontWeight: '700', marginLeft: 4 }}>
-                                                Activated
-                                            </Text>
+                                            <ActivityIndicator size="large" color="#fff" />
                                         </View>
                                     )}
-                                    {!isUpgrade && !isDowngrade && !isCurrentPlan && (
-                                        <>
-                                            <Text style={styles.subscriptionPerWeek}>{plan.perWeek}</Text>
-                                            <Text style={styles.subscriptionPeriod}>per week</Text>
-                                        </>
+
+                                    {/* Current Plan Badge */}
+                                    {isCurrentPlan && (
+                                        <View style={styles.currentPlanBadge}>
+                                            <Ionicons name="checkmark-circle" size={14} color="#fff" />
+                                            <Text style={styles.currentPlanBadgeText}>CURRENT PLAN</Text>
+                                        </View>
                                     )}
-                                </View>
+
+                                    {/* Best Value Badge */}
+                                    {plan.recommended && !isCurrentPlan && (
+                                        <View style={styles.subscriptionBadge}>
+                                            <Text style={styles.subscriptionBadgeText}>BEST VALUE</Text>
+                                        </View>
+                                    )}
+
+                                    <View style={[
+                                        styles.subscriptionMain,
+                                        (isCurrentPlan || plan.recommended) && { marginTop: 24 }
+                                    ]}>
+                                        <View style={styles.subscriptionInfo}>
+                                            <Text style={[
+                                                styles.subscriptionName,
+                                                isCurrentPlan && { color: colors.primary }
+                                            ]}>{plan.name}</Text>
+                                            <Text style={styles.subscriptionPriceMain}>{getPrice(plan.id, plan.price)}</Text>
+                                        </View>
+
+                                        <View style={styles.subscriptionPriceContainer}>
+                                            {isUpgrade && (
+                                                <TouchableOpacity style={{
+                                                    flexDirection: 'row',
+                                                    alignItems: 'center',
+                                                    backgroundColor: '#10B981',
+                                                    paddingHorizontal: 8,
+                                                    paddingVertical: 4,
+                                                    borderRadius: 12
+                                                }} onPress={handlePlanPress}>
+                                                    <Ionicons name="arrow-up-circle" size={16} color="#fff" />
+                                                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600', marginLeft: 4 }}>Upgrade</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            {isDowngrade && (
+                                                <TouchableOpacity style={{
+                                                    flexDirection: 'row',
+                                                    alignItems: 'center',
+                                                    backgroundColor: colors.primary,
+                                                    paddingHorizontal: 8,
+                                                    paddingVertical: 4,
+                                                    borderRadius: 12
+                                                }} onPress={() => openManageSubscriptions()}>
+                                                    <Ionicons name="open-outline" size={16} color="#fff" />
+                                                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600', marginLeft: 4 }}>Manage</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            {isCurrentPlan && (
+                                                <View style={{
+                                                    flexDirection: 'row',
+                                                    alignItems: 'center',
+                                                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                                    paddingHorizontal: 10,
+                                                    paddingVertical: 4,
+                                                    borderRadius: 12
+                                                }}>
+                                                    <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                                                    <Text style={{ color: '#10B981', fontSize: 13, fontWeight: '700', marginLeft: 4 }}>Activated</Text>
+                                                </View>
+                                            )}
+                                            {!isUpgrade && !isDowngrade && !isCurrentPlan && (
+                                                <>
+                                                    <Text style={styles.subscriptionPerWeek}>{plan.perWeek}</Text>
+                                                    <Text style={styles.subscriptionPeriod}>per week</Text>
+                                                </>
+                                            )}
+                                        </View>
                                     </View>
 
-                                    {/* Features List */}
-                <View style={styles.planFeatures}>
-                    {plan.features.map((feature, idx) => (
-                        <View key={idx} style={styles.planFeatureItem}>
-                            <Ionicons name={feature.icon} size={16} color={colors.success} />
-                            <Text style={styles.planFeatureText}>{feature.text}</Text>
-                        </View>
-                    ))}
-                </View>
-            </TouchableOpacity>
-            );
+                                    <View style={styles.planFeatures}>
+                                        {plan.features.map((feature, idx) => (
+                                            <View key={idx} style={styles.planFeatureItem}>
+                                                <Ionicons name={feature.icon} size={16} color={colors.success} />
+                                                <Text style={styles.planFeatureText}>{feature.text}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </TouchableOpacity>
+                            );
                         })}
 
-            {/* Manage in Store button for subscribers */}
-            {credits.hasProSubscription && (
-                <TouchableOpacity
-                    style={styles.manageStoreButton}
-                    onPress={() => openManageSubscriptions()}
-                >
-                    <Ionicons name="open-outline" size={16} color={colors.primary} />
-                    <Text style={[styles.manageStoreText, { color: colors.primary }]}>
-                        Manage Subscription in {Platform.OS === 'ios' ? 'App Store' : 'Play Store'}
-                    </Text>
-                </TouchableOpacity>
-            )}
-
-            {/* Privacy, Terms & Restore */}
-            <View style={styles.subscriptionFooter}>
-                <View style={styles.legalLinksRow}>
-                    <TouchableOpacity
-                        style={styles.legalLink}
-                        onPress={() => navigation.navigate('PrivacyPolicy')}
-                    >
-                        <Text style={styles.legalLinkText}>Privacy Policy</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.legalSeparator}>•</Text>
-                    <TouchableOpacity
-                        style={styles.legalLink}
-                        onPress={() => navigation.navigate('TermsOfService')}
-                    >
-                        <Text style={styles.legalLinkText}>Terms of Service</Text>
-                    </TouchableOpacity>
-                </View>
-                <TouchableOpacity
-                    style={styles.restoreButtonInline}
-                    onPress={handleRestorePurchases}
-                    disabled={isPurchasing}
-                >
-                    <Ionicons name="refresh-outline" size={16} color={colors.primary} />
-                    <Text style={styles.restoreButtonInlineText}>
-                        {isPurchasing ? 'Processing...' : 'Restore Purchases'}
-                    </Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    )
-}
-
-{/* Credit Packs - Only when credits tab */ }
-{
-    activeTab === 'credits' && (
-        <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>One-Time Packs</Text>
-                <Text style={styles.sectionSubtitle}>Buy credits as you need</Text>
-            </View>
-
-            {CREDIT_PACKS.map((pack) => (
-                <TouchableOpacity
-                    key={pack.id}
-                    style={[
-                        styles.packCard,
-                        pack.popular && styles.packCardPopular,
-                        pack.bestValue && styles.packCardBestValue,
-                    ]}
-                    onPress={() => handlePurchase(pack)}
-                    activeOpacity={0.8}
-                >
-                    {pack.popular && (
-                        <View style={styles.badge}>
-                            <Text style={styles.badgeText}>POPULAR</Text>
-                        </View>
-                    )}
-                    {pack.bestValue && (
-                        <View style={[styles.badge, styles.bestValueBadge]}>
-                            <Text style={styles.badgeText}>BEST VALUE</Text>
-                        </View>
-                    )}
-
-                    <View style={styles.packMain}>
-                        <View style={styles.packIconContainer}>
-                            <LinearGradient
-                                colors={colors.gradientPrimary}
-                                style={styles.packIconGradient}
+                        {/* Manage in Store button for subscribers */}
+                        {credits.hasProSubscription && (
+                            <TouchableOpacity
+                                style={styles.manageStoreButton}
+                                onPress={() => openManageSubscriptions()}
                             >
-                                <Ionicons name={pack.icon} size={24} color="#fff" />
-                            </LinearGradient>
-                        </View>
+                                <Ionicons name="open-outline" size={16} color={colors.primary} />
+                                <Text style={[styles.manageStoreText, { color: colors.primary }]}>
+                                    Manage Subscription in {Platform.OS === 'ios' ? 'App Store' : 'Play Store'}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
 
-                        <View style={styles.packInfo}>
-                            <Text style={styles.packName}>{pack.name}</Text>
-                            <View style={styles.creditRow}>
-                                <Text style={styles.packCredits}>{pack.credits} Credits</Text>
-                                {pack.bonus && (
-                                    <Text style={styles.bonusText}>{pack.bonus}</Text>
-                                )}
+                        {/* Privacy, Terms & Restore */}
+                        <View style={styles.subscriptionFooter}>
+                            <View style={styles.legalLinksRow}>
+                                <TouchableOpacity
+                                    style={styles.legalLink}
+                                    onPress={() => navigation.navigate('PrivacyPolicy')}
+                                >
+                                    <Text style={styles.legalLinkText}>Privacy Policy</Text>
+                                </TouchableOpacity>
+                                <Text style={styles.legalSeparator}>•</Text>
+                                <TouchableOpacity
+                                    style={styles.legalLink}
+                                    onPress={() => navigation.navigate('TermsOfService')}
+                                >
+                                    <Text style={styles.legalLinkText}>Terms of Service</Text>
+                                </TouchableOpacity>
                             </View>
-                            <Text style={styles.packDescription}>{pack.description}</Text>
-                        </View>
-
-                        <View style={styles.packPriceContainer}>
-                            <Text style={styles.packPrice}>{getPrice(pack.id, pack.price)}</Text>
-                            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                            <TouchableOpacity
+                                style={styles.restoreButtonInline}
+                                onPress={handleRestorePurchases}
+                                disabled={isPurchasing}
+                            >
+                                <Ionicons name="refresh-outline" size={16} color={colors.primary} />
+                                <Text style={styles.restoreButtonInlineText}>
+                                    {isPurchasing ? 'Processing...' : 'Restore Purchases'}
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
-                </TouchableOpacity>
-            ))}
+                )
+                }
 
-            {/* Credits Restore Info */}
-            <View style={styles.creditsRestoreInfo}>
-                <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
-                <Text style={styles.creditsRestoreText}>
-                    Switching to a new device? Use your old device's recovery code to restore your purchased credits.
-                </Text>
-            </View>
-        </View>
-    )
-}
+                {/* Credit Packs - Only when credits tab */}
+                {
+                    activeTab === 'credits' && (
+                        <View style={styles.section}>
+                            <View style={styles.sectionHeader}>
+                                <Text style={styles.sectionTitle}>One-Time Packs</Text>
+                                <Text style={styles.sectionSubtitle}>Buy credits as you need</Text>
+                            </View>
 
-{/* Watch Ads Section - Only when ads tab */ }
-{
-    activeTab === 'ads' && (
-        <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Watch Ads for Credits</Text>
-                <Text style={styles.sectionSubtitle}>Earn free credits by watching ads</Text>
-            </View>
-            <View style={styles.adCard}>
-                <Ionicons name="play-circle-outline" size={56} color={colors.primary} />
-                <Text style={styles.adCardTitle}>Watch a Video Ad</Text>
-                <Text style={styles.adCardDesc}>Earn 5 credits for each ad you watch</Text>
-                <TouchableOpacity style={[styles.adButton, { backgroundColor: colors.primary }]} disabled>
-                    <Text style={styles.adButtonText}>Coming Soon</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    )
-}
+                            {CREDIT_PACKS.map((pack) => (
+                                <TouchableOpacity
+                                    key={pack.id}
+                                    style={[
+                                        styles.packCard,
+                                        pack.popular && styles.packCardPopular,
+                                        pack.bestValue && styles.packCardBestValue,
+                                    ]}
+                                    onPress={() => handlePurchase(pack)}
+                                    activeOpacity={0.8}
+                                >
+                                    {pack.popular && (
+                                        <View style={styles.badge}>
+                                            <Text style={styles.badgeText}>POPULAR</Text>
+                                        </View>
+                                    )}
+                                    {pack.bestValue && (
+                                        <View style={[styles.badge, styles.bestValueBadge]}>
+                                            <Text style={styles.badgeText}>BEST VALUE</Text>
+                                        </View>
+                                    )}
 
-{/* Info Section - HIDDEN FOR NOW
+                                    <View style={styles.packMain}>
+                                        <View style={styles.packIconContainer}>
+                                            <LinearGradient
+                                                colors={colors.gradientPrimary}
+                                                style={styles.packIconGradient}
+                                            >
+                                                <Ionicons name={pack.icon} size={24} color="#fff" />
+                                            </LinearGradient>
+                                        </View>
+
+                                        <View style={styles.packInfo}>
+                                            <Text style={styles.packName}>{pack.name}</Text>
+                                            <View style={styles.creditRow}>
+                                                <Text style={styles.packCredits}>{pack.credits} Credits</Text>
+                                                {pack.bonus && (
+                                                    <Text style={styles.bonusText}>{pack.bonus}</Text>
+                                                )}
+                                            </View>
+                                            <Text style={styles.packDescription}>{pack.description}</Text>
+                                        </View>
+
+                                        <View style={styles.packPriceContainer}>
+                                            <Text style={styles.packPrice}>{getPrice(pack.id, pack.price)}</Text>
+                                            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                                        </View>
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+
+                            {/* Credits Restore Info */}
+                            <View style={styles.creditsRestoreInfo}>
+                                <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
+                                <Text style={styles.creditsRestoreText}>
+                                    Switching to a new device? Use your old device's recovery code to restore your purchased credits.
+                                </Text>
+                            </View>
+                        </View>
+                    )
+                }
+
+                {/* Watch Ads Section - Only when ads tab */}
+                {
+                    activeTab === 'ads' && (
+                        <View style={styles.section}>
+                            <View style={styles.sectionHeader}>
+                                <Text style={styles.sectionTitle}>Watch Ads for Credits</Text>
+                                <Text style={styles.sectionSubtitle}>Earn free credits by watching ads</Text>
+                            </View>
+                            <View style={styles.adCard}>
+                                <Ionicons name="play-circle-outline" size={56} color={colors.primary} />
+                                <Text style={styles.adCardTitle}>Watch a Video Ad</Text>
+                                <Text style={styles.adCardDesc}>Earn 5 credits for each ad you watch</Text>
+                                <TouchableOpacity style={[styles.adButton, { backgroundColor: colors.primary }]} disabled>
+                                    <Text style={styles.adButtonText}>Coming Soon</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )
+                }
+
+                {/* Info Section - HIDDEN FOR NOW
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>How it works</Text>
                     <View style={styles.infoGrid}>
@@ -830,7 +894,7 @@ export default function CreditsScreen({ navigation }) {
                 </View>
                 */}
 
-{/* Daily Gifts Section - HIDDEN FOR NOW
+                {/* Daily Gifts Section - HIDDEN FOR NOW
                 <View style={styles.section}>
                     <View style={styles.dailyGiftsCard}>
                         <View style={styles.dailyGiftsHeader}>
@@ -923,104 +987,104 @@ export default function CreditsScreen({ navigation }) {
                 </View>
                 */}
 
-{/* Recovery Code Section */ }
-{
-    credits.recoveryCode && (
-        <View style={styles.section}>
-            <View style={styles.recoveryCard}>
-                <View style={styles.recoveryHeader}>
-                    <Ionicons name="key-outline" size={24} color={colors.primary} />
-                    <Text style={styles.recoveryTitle}>Your Recovery Code</Text>
+                {/* Recovery Code Section */}
+                {
+                    credits.recoveryCode && (
+                        <View style={styles.section}>
+                            <View style={styles.recoveryCard}>
+                                <View style={styles.recoveryHeader}>
+                                    <Ionicons name="key-outline" size={24} color={colors.primary} />
+                                    <Text style={styles.recoveryTitle}>Your Recovery Code</Text>
+                                </View>
+                                <Text style={styles.recoverySubtitle}>
+                                    Save this code to recover your credits on a new device
+                                </Text>
+                                <View style={styles.recoveryCodeContainer}>
+                                    <Text style={styles.recoveryCodeText}>{credits.recoveryCode}</Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.copyButton}
+                                    onPress={async () => {
+                                        await Clipboard.setStringAsync(credits.recoveryCode);
+                                        Alert.alert('Copied!', 'Recovery code copied to clipboard. Save it somewhere safe!');
+                                    }}
+                                >
+                                    <Ionicons name="copy-outline" size={18} color="#fff" />
+                                    <Text style={styles.copyButtonText}>Copy Code</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )
+                }
+
+                {/* Footer Info */}
+                <View style={styles.footer}>
+                    <Ionicons name="information-circle-outline" size={20} color={colors.textMuted} />
+                    <Text style={styles.footerText}>
+                        Credits never expire. Purchases are synced across devices.
+                    </Text>
                 </View>
-                <Text style={styles.recoverySubtitle}>
-                    Save this code to recover your credits on a new device
-                </Text>
-                <View style={styles.recoveryCodeContainer}>
-                    <Text style={styles.recoveryCodeText}>{credits.recoveryCode}</Text>
-                </View>
-                <TouchableOpacity
-                    style={styles.copyButton}
-                    onPress={async () => {
-                        await Clipboard.setStringAsync(credits.recoveryCode);
-                        Alert.alert('Copied!', 'Recovery code copied to clipboard. Save it somewhere safe!');
-                    }}
-                >
-                    <Ionicons name="copy-outline" size={18} color="#fff" />
-                    <Text style={styles.copyButtonText}>Copy Code</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    )
-}
 
-{/* Footer Info */ }
-<View style={styles.footer}>
-    <Ionicons name="information-circle-outline" size={20} color={colors.textMuted} />
-    <Text style={styles.footerText}>
-        Credits never expire. Purchases are synced across devices.
-    </Text>
-</View>
+                {/* DEV TEST MODE PANEL - Remove before production */}
+                {
+                    DEV_MODE && (
+                        <View style={styles.devPanel}>
+                            <View style={styles.devPanelHeader}>
+                                <Ionicons name="construct" size={20} color="#FF6B6B" />
+                                <Text style={styles.devPanelTitle}>🔧 DEV TEST MODE</Text>
+                            </View>
+                            <Text style={styles.devPanelSubtitle}>
+                                Recovery Code: {recoveryCode || 'Loading...'}
+                            </Text>
 
-{/* DEV TEST MODE PANEL - Remove before production */ }
-{
-    DEV_MODE && (
-        <View style={styles.devPanel}>
-            <View style={styles.devPanelHeader}>
-                <Ionicons name="construct" size={20} color="#FF6B6B" />
-                <Text style={styles.devPanelTitle}>🔧 DEV TEST MODE</Text>
-            </View>
-            <Text style={styles.devPanelSubtitle}>
-                Recovery Code: {recoveryCode || 'Loading...'}
-            </Text>
+                            <View style={styles.devButtonRow}>
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    onPress={() => {
+                                        addCredits(100, `dev_test_${Date.now()}`);
+                                        Alert.alert('✅ Dev Mode', '100 test credits added!');
+                                    }}
+                                >
+                                    <Text style={styles.devButtonText}>+100 Credits</Text>
+                                </TouchableOpacity>
 
-            <View style={styles.devButtonRow}>
-                <TouchableOpacity
-                    style={styles.devButton}
-                    onPress={() => {
-                        addCredits(100, `dev_test_${Date.now()}`);
-                        Alert.alert('✅ Dev Mode', '100 test credits added!');
-                    }}
-                >
-                    <Text style={styles.devButtonText}>+100 Credits</Text>
-                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    onPress={() => {
+                                        addCredits(500, `dev_test_${Date.now()}`);
+                                        Alert.alert('✅ Dev Mode', '500 test credits added!');
+                                    }}
+                                >
+                                    <Text style={styles.devButtonText}>+500 Credits</Text>
+                                </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={styles.devButton}
-                    onPress={() => {
-                        addCredits(500, `dev_test_${Date.now()}`);
-                        Alert.alert('✅ Dev Mode', '500 test credits added!');
-                    }}
-                >
-                    <Text style={styles.devButtonText}>+500 Credits</Text>
-                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    onPress={() => {
+                                        addCredits(1000, `dev_test_${Date.now()}`);
+                                        Alert.alert('✅ Dev Mode', '1000 test credits added!');
+                                    }}
+                                >
+                                    <Text style={styles.devButtonText}>+1000 Credits</Text>
+                                </TouchableOpacity>
+                            </View>
 
-                <TouchableOpacity
-                    style={styles.devButton}
-                    onPress={() => {
-                        addCredits(1000, `dev_test_${Date.now()}`);
-                        Alert.alert('✅ Dev Mode', '1000 test credits added!');
-                    }}
-                >
-                    <Text style={styles.devButtonText}>+1000 Credits</Text>
-                </TouchableOpacity>
-            </View>
+                            <TouchableOpacity
+                                style={[styles.devButton, { backgroundColor: '#4CAF50', marginTop: 8 }]}
+                                onPress={async () => {
+                                    await syncBalance();
+                                    Alert.alert('✅ Synced', 'Credits synced from server!');
+                                }}
+                            >
+                                <Text style={styles.devButtonText}>🔄 Sync from Server</Text>
+                            </TouchableOpacity>
 
-            <TouchableOpacity
-                style={[styles.devButton, { backgroundColor: '#4CAF50', marginTop: 8 }]}
-                onPress={async () => {
-                    await syncBalance();
-                    Alert.alert('✅ Synced', 'Credits synced from server!');
-                }}
-            >
-                <Text style={styles.devButtonText}>🔄 Sync from Server</Text>
-            </TouchableOpacity>
-
-            <Text style={[styles.devPanelSubtitle, { marginTop: 12, color: '#FF6B6B' }]}>
-                ⚠️ Remove DEV_MODE before production!
-            </Text>
-        </View>
-    )
-}
+                            <Text style={[styles.devPanelSubtitle, { marginTop: 12, color: '#FF6B6B' }]}>
+                                ⚠️ Remove DEV_MODE before production!
+                            </Text>
+                        </View>
+                    )
+                }
             </ScrollView >
         </View >
     );
