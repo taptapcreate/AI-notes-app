@@ -8,7 +8,9 @@ const UserContext = createContext();
 // Cache keys for offline fallback
 const PURCHASED_CREDITS_CACHE_KEY = '@purchased_credits_cache';
 const FREE_CREDITS_CACHE_KEY = '@free_credits_cache';
+const SUBSCRIBER_DAILY_USAGE_KEY = '@subscriber_daily_usage';
 const FREE_DAILY_LIMIT = 3;
+const SUBSCRIBER_DAILY_LIMIT = 100; // Max requests per day for subscribers
 const ONBOARDING_SHOWN_KEY = '@onboarding_shown_v1';
 
 export const UserProvider = ({ children }) => {
@@ -26,6 +28,7 @@ export const UserProvider = ({ children }) => {
     // Subscription state
     const [hasProSubscription, setHasProSubscription] = useState(false);
     const [subscriptionType, setSubscriptionType] = useState(null);
+    const [subscriberDailyUsage, setSubscriberDailyUsage] = useState(0);
 
     // App Configuration (Remote)
     const [appConfig, setAppConfig] = useState(null);
@@ -199,11 +202,21 @@ export const UserProvider = ({ children }) => {
         }
     }, []);
 
-    // Use credits - SUBSCRIBERS get unlimited, others use FREE first, then PURCHASED
+    // Use credits - SUBSCRIBERS get rate-limited unlimited, others use FREE first, then PURCHASED
     const useCredits = async (cost = 1) => {
         try {
-            // Subscribers get unlimited access - no credit deduction
+            // Subscribers get access but with daily rate limit
             if (hasProSubscription) {
+                // Check and update subscriber daily usage
+                const usage = await getSubscriberDailyUsage();
+
+                if (usage >= SUBSCRIBER_DAILY_LIMIT) {
+                    console.log(`Subscriber daily limit reached: ${usage}/${SUBSCRIBER_DAILY_LIMIT}`);
+                    return { success: false, rateLimited: true, remaining: 0, limit: SUBSCRIBER_DAILY_LIMIT };
+                }
+
+                // Increment usage
+                await incrementSubscriberUsage();
                 return true;
             }
 
@@ -229,6 +242,43 @@ export const UserProvider = ({ children }) => {
         } catch (error) {
             console.error('Use credits error:', error);
             return false;
+        }
+    };
+
+    // Get subscriber daily usage (resets at midnight)
+    const getSubscriberDailyUsage = async () => {
+        try {
+            const stored = await AsyncStorage.getItem(SUBSCRIBER_DAILY_USAGE_KEY);
+            if (!stored) return 0;
+
+            const data = JSON.parse(stored);
+            const storedDate = new Date(data.date).toDateString();
+            const today = new Date().toDateString();
+
+            // Reset if new day
+            if (storedDate !== today) {
+                await AsyncStorage.setItem(SUBSCRIBER_DAILY_USAGE_KEY, JSON.stringify({ count: 0, date: new Date().toISOString() }));
+                setSubscriberDailyUsage(0);
+                return 0;
+            }
+
+            setSubscriberDailyUsage(data.count);
+            return data.count;
+        } catch (error) {
+            console.error('Get subscriber usage error:', error);
+            return 0;
+        }
+    };
+
+    // Increment subscriber daily usage
+    const incrementSubscriberUsage = async () => {
+        try {
+            const current = await getSubscriberDailyUsage();
+            const newCount = current + 1;
+            await AsyncStorage.setItem(SUBSCRIBER_DAILY_USAGE_KEY, JSON.stringify({ count: newCount, date: new Date().toISOString() }));
+            setSubscriberDailyUsage(newCount);
+        } catch (error) {
+            console.error('Increment subscriber usage error:', error);
         }
     };
 
@@ -299,6 +349,9 @@ export const UserProvider = ({ children }) => {
             // Subscription info
             hasProSubscription,
             subscriptionType,
+            // Subscriber rate limiting
+            subscriberDailyUsage,
+            subscriberDailyLimit: SUBSCRIBER_DAILY_LIMIT,
             // App Config
             appConfig,
         };

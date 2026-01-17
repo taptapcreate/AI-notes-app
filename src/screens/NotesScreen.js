@@ -43,7 +43,7 @@ const INPUT_TYPES = [
     { id: 'voice', icon: 'mic', label: 'Voice' },
     { id: 'pdf', icon: 'document', label: 'PDF' },
     { id: 'website', icon: 'globe-outline', label: 'Web' },
-    { id: 'youtube', icon: 'logo-youtube', label: 'YouTube' },
+    // { id: 'youtube', icon: 'logo-youtube', label: 'YouTube' }, // Hidden - YouTube blocks automated access
     { id: 'calendar', icon: 'calendar', label: 'Calendar' },
     { id: 'location', icon: 'location-outline', label: 'Travel' },
     { id: 'import', icon: 'folder-open-outline', label: 'Import' },
