@@ -19,12 +19,23 @@ import { lightTap } from '../utils/haptics';
 
 const { width } = Dimensions.get('window');
 
-const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return { text: 'Good Morning', icon: 'sunny-outline' };
-    if (hour < 17) return { text: 'Good Afternoon', icon: 'sunny' };
-    if (hour < 21) return { text: 'Good Evening', icon: 'moon-outline' };
-    return { text: 'Good Night', icon: 'moon' };
+// Calculate estimated time saved based on usage
+// Assumption: Each AI note saves ~5 min, each reply saves ~3 min of manual work
+const getTimeSaved = (stats) => {
+    const notesTime = stats.totalNotes * 5; // 5 min per note
+    const repliesTime = stats.totalReplies * 3; // 3 min per reply
+    const totalMinutes = notesTime + repliesTime;
+
+    if (totalMinutes < 60) {
+        return { value: totalMinutes, unit: 'min', display: `${totalMinutes} min` };
+    } else {
+        const hours = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        if (mins === 0) {
+            return { value: hours, unit: 'hr', display: `${hours} hr` };
+        }
+        return { value: hours, unit: 'hr', display: `${hours}hr ${mins}min` };
+    }
 };
 
 const formatDate = (timestamp) => {
@@ -43,8 +54,8 @@ export default function HomeScreen({ navigation }) {
     const { colors } = useTheme();
     const { notes, replies, getStats } = useHistory();
     const { getCreditData } = useUser();
-    const greeting = getGreeting();
     const stats = getStats();
+    const timeSaved = getTimeSaved(stats);
     const styles = createStyles(colors);
     const credits = getCreditData();
 
@@ -214,12 +225,58 @@ export default function HomeScreen({ navigation }) {
 
     return (
         <View style={styles.container}>
+            {/* Top Banner Ad - Hidden for Pro subscribers */}
+            {areAdsEnabled && !credits.hasProSubscription && (
+                <View style={{ alignItems: 'center', paddingVertical: 8, backgroundColor: colors.background }}>
+                    <BannerAd
+                        unitId={adUnitIDs.banner}
+                        size={BannerAdSize.BANNER}
+                        requestOptions={{
+                            requestNonPersonalizedAdsOnly: true,
+                        }}
+                    />
+                </View>
+            )}
+
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-                {/* Greeting */}
-                <AnimatedSection index={0} style={styles.greetingSection}>
-                    <Ionicons name={greeting.icon} size={40} color={colors.primary} style={{ marginBottom: 12 }} />
-                    <Text style={styles.greetingText}>{greeting.text}!</Text>
-                    <Text style={styles.greetingSubtext}>What would you like to create today?</Text>
+                {/* Usage Insights */}
+                <AnimatedSection index={0} style={styles.insightsSection}>
+                    <View style={styles.insightsHeader}>
+                        <Ionicons name="sparkles" size={24} color={colors.primary} />
+                        <Text style={styles.insightsTitle}>Your AI Impact</Text>
+                    </View>
+                    <View style={styles.insightsCard}>
+                        <LinearGradient
+                            colors={[`${colors.primary}15`, `${colors.secondary}10`]}
+                            style={styles.insightsGradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                        >
+                            <View style={styles.timeSavedContainer}>
+                                <Ionicons name="time-outline" size={32} color={colors.primary} />
+                                <View style={styles.timeSavedText}>
+                                    <Text style={styles.timeSavedValue}>{timeSaved.display}</Text>
+                                    <Text style={styles.timeSavedLabel}>saved using AI</Text>
+                                </View>
+                            </View>
+                            <View style={styles.insightsStats}>
+                                <View style={styles.insightsStat}>
+                                    <Text style={styles.insightsStatValue}>{stats.totalNotes}</Text>
+                                    <Text style={styles.insightsStatLabel}>Notes</Text>
+                                </View>
+                                <View style={[styles.insightsDivider, { backgroundColor: colors.glassBorder }]} />
+                                <View style={styles.insightsStat}>
+                                    <Text style={styles.insightsStatValue}>{stats.totalReplies}</Text>
+                                    <Text style={styles.insightsStatLabel}>Replies</Text>
+                                </View>
+                                <View style={[styles.insightsDivider, { backgroundColor: colors.glassBorder }]} />
+                                <View style={styles.insightsStat}>
+                                    <Text style={styles.insightsStatValue}>{stats.notesToday + stats.repliesToday}</Text>
+                                    <Text style={styles.insightsStatLabel}>Today</Text>
+                                </View>
+                            </View>
+                        </LinearGradient>
+                    </View>
                 </AnimatedSection>
 
                 {/* Credits Summary */}
@@ -236,17 +293,35 @@ export default function HomeScreen({ navigation }) {
                             end={{ x: 1, y: 0 }}
                         >
                             <View style={{ flex: 1 }}>
-                                <View style={styles.creditDisplayRow}>
-                                    <Ionicons name="flash" size={16} color="#fff" style={{ opacity: 0.9 }} />
-                                    <Text style={styles.creditLabelText}>Daily Free:</Text>
-                                    <Text style={styles.creditValueMain}>{credits.remainingFree}</Text>
-                                </View>
-                                {(credits.purchasedCredits > 0) && (
-                                    <View style={[styles.creditDisplayRow, { marginTop: 4 }]}>
-                                        <Ionicons name="wallet" size={16} color="#fff" style={{ opacity: 0.9 }} />
-                                        <Text style={styles.creditLabelText}>Purchased:</Text>
-                                        <Text style={styles.creditValueSub}>{credits.purchasedCredits}</Text>
+                                {credits.hasProSubscription ? (
+                                    <View>
+                                        <View style={styles.creditDisplayRow}>
+                                            <Ionicons name="infinite" size={20} color="#fff" style={{ opacity: 0.9 }} />
+                                            <Text style={[styles.creditValueMain, { fontSize: 20 }]}>Unlimited Access</Text>
+                                        </View>
+                                        {(credits.purchasedCredits > 0) && (
+                                            <View style={[styles.creditDisplayRow, { marginTop: 4 }]}>
+                                                <Ionicons name="wallet" size={16} color="#fff" style={{ opacity: 0.9 }} />
+                                                <Text style={styles.creditLabelText}>Purchased:</Text>
+                                                <Text style={styles.creditValueSub}>{credits.purchasedCredits}</Text>
+                                            </View>
+                                        )}
                                     </View>
+                                ) : (
+                                    <>
+                                        <View style={styles.creditDisplayRow}>
+                                            <Ionicons name="flash" size={16} color="#fff" style={{ opacity: 0.9 }} />
+                                            <Text style={styles.creditLabelText}>Daily Free:</Text>
+                                            <Text style={styles.creditValueMain}>{credits.remainingFree}</Text>
+                                        </View>
+                                        {(credits.purchasedCredits > 0) && (
+                                            <View style={[styles.creditDisplayRow, { marginTop: 4 }]}>
+                                                <Ionicons name="wallet" size={16} color="#fff" style={{ opacity: 0.9 }} />
+                                                <Text style={styles.creditLabelText}>Purchased:</Text>
+                                                <Text style={styles.creditValueSub}>{credits.purchasedCredits}</Text>
+                                            </View>
+                                        )}
+                                    </>
                                 )}
                             </View>
                             <View style={styles.creditsAction}>
@@ -387,19 +462,20 @@ export default function HomeScreen({ navigation }) {
                     </LinearGradient>
                 </View>
 
-                {/* Banner Ad */}
-                {areAdsEnabled && (
-                    <View style={{ alignItems: 'center', marginTop: 20 }}>
-                        <BannerAd
-                            unitId={adUnitIDs.banner}
-                            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-                            requestOptions={{
-                                requestNonPersonalizedAdsOnly: true,
-                            }}
-                        />
-                    </View>
-                )}
             </ScrollView>
+
+            {/* Bottom Banner Ad - Fixed at bottom, hidden for Pro subscribers */}
+            {areAdsEnabled && !credits.hasProSubscription && (
+                <View style={{ alignItems: 'center', paddingVertical: 8, backgroundColor: colors.background, borderTopWidth: 1, borderTopColor: colors.glassBorder }}>
+                    <BannerAd
+                        unitId={adUnitIDs.banner}
+                        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+                        requestOptions={{
+                            requestNonPersonalizedAdsOnly: true,
+                        }}
+                    />
+                </View>
+            )}
         </View>
     );
 }
@@ -452,23 +528,76 @@ const createStyles = (colors) => StyleSheet.create({
     creditsAction: {
         marginLeft: 16,
     },
-    greetingSection: {
-        alignItems: 'center',
-        paddingVertical: 24,
+    // Usage Insights Styles
+    insightsSection: {
+        marginBottom: 16,
     },
-    greetingEmoji: {
-        fontSize: 48,
+    insightsHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
         marginBottom: 12,
     },
-    greetingText: {
+    insightsTitle: {
         color: colors.text,
-        fontSize: 28,
+        fontSize: 18,
         fontWeight: '700',
     },
-    greetingSubtext: {
-        color: colors.textSecondary,
-        fontSize: 16,
+    insightsCard: {
+        borderRadius: 16,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
+    },
+    insightsGradient: {
+        padding: 20,
+    },
+    timeSavedContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+        marginBottom: 20,
+    },
+    timeSavedText: {
+        flex: 1,
+    },
+    timeSavedValue: {
+        color: colors.primary,
+        fontSize: 32,
+        fontWeight: '800',
+    },
+    timeSavedLabel: {
+        color: colors.textMuted,
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    insightsStats: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        backgroundColor: `${colors.surface}80`,
+        borderRadius: 12,
+        padding: 16,
+    },
+    insightsStat: {
+        alignItems: 'center',
+        flex: 1,
+    },
+    insightsStatValue: {
+        color: colors.text,
+        fontSize: 20,
+        fontWeight: '700',
+    },
+    insightsStatLabel: {
+        color: colors.textMuted,
+        fontSize: 12,
+        fontWeight: '500',
         marginTop: 4,
+    },
+    insightsDivider: {
+        width: 1,
+        height: 30,
+        opacity: 0.5,
     },
     section: {
         marginBottom: 24,

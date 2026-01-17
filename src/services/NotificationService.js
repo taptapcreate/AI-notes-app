@@ -142,9 +142,44 @@ export function addNotificationListeners(onNotificationReceived, onNotificationR
     };
 }
 
+/**
+ * Show a local notification immediately
+ */
+export async function showLocalNotification(title, body, data = {}) {
+    try {
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title,
+                body,
+                data,
+                sound: true,
+            },
+            trigger: null, // null = immediate
+        });
+        console.log('📱 Local notification shown:', title);
+    } catch (error) {
+        console.error('Error showing local notification:', error);
+    }
+}
+
+/**
+ * Show notification when note/reply is ready
+ * Only shows if app is in background
+ */
+export async function showNoteReadyNotification(type = 'note') {
+    const title = type === 'note' ? '✨ Your note is ready!' : '💬 Your reply is ready!';
+    const body = type === 'note'
+        ? 'Your AI-generated notes are complete. Tap to view.'
+        : 'Your AI-generated reply is complete. Tap to view.';
+
+    await showLocalNotification(title, body, { type });
+}
+
 export default {
     registerForPushNotificationsAsync,
     registerTokenWithServer,
     unregisterToken,
     addNotificationListeners,
+    showLocalNotification,
+    showNoteReadyNotification,
 };

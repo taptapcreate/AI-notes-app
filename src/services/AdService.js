@@ -11,9 +11,10 @@ let AdEventType = { LOADED: 'loaded', CLOSED: 'closed', ERROR: 'error' };
 let RewardedAd = { createForAdRequest: () => ({ load: () => { }, show: () => { }, addAdEventListener: () => () => { } }) };
 let RewardedAdEventType = { LOADED: 'loaded', EARNED_REWARD: 'earned_reward', CLOSED: 'closed' };
 let InterstitialAd = { createForAdRequest: () => ({ load: () => { }, show: () => { }, addAdEventListener: () => () => { } }) };
+let AppOpenAd = { createForAdRequest: () => ({ load: () => { }, show: () => { }, addAdEventListener: () => () => { } }) };
 let BannerAd = () => null;
 let BannerAdSize = { ANCHORED_ADAPTIVE_BANNER: 'ANCHORED_ADAPTIVE_BANNER', BANNER: 'BANNER' };
-let TestIds = { BANNER: '', INTERSTITIAL: '', REWARDED: '' };
+let TestIds = { BANNER: '', INTERSTITIAL: '', REWARDED: '', APP_OPEN: '' };
 
 if (areAdsEnabled) {
     try {
@@ -22,6 +23,7 @@ if (areAdsEnabled) {
         RewardedAd = RNGoogleMobileAds.RewardedAd;
         RewardedAdEventType = RNGoogleMobileAds.RewardedAdEventType;
         InterstitialAd = RNGoogleMobileAds.InterstitialAd;
+        AppOpenAd = RNGoogleMobileAds.AppOpenAd;
         BannerAd = RNGoogleMobileAds.BannerAd;
         BannerAdSize = RNGoogleMobileAds.BannerAdSize;
         TestIds = RNGoogleMobileAds.TestIds;
@@ -35,8 +37,8 @@ if (areAdsEnabled) {
 // AD UNIT IDS
 // ==========================================
 
-// Set to true to use test ads during development
-const USE_TEST_ADS = __DEV__;
+// Set to true to use test ads during development (TEMP: forced true for testing)
+const USE_TEST_ADS = true;
 
 const AD_UNIT_IDS = {
     ios: {
@@ -66,6 +68,8 @@ const getAdUnitId = (type) => {
                 return TestIds.INTERSTITIAL;
             case 'banner':
                 return TestIds.BANNER;
+            case 'appOpen':
+                return TestIds.APP_OPEN;
             default:
                 return TestIds.BANNER;
         }
@@ -291,6 +295,137 @@ export const showInterstitialAd = async (callbacks = {}) => {
 export const isInterstitialAdReady = () => interstitialAdLoaded;
 
 // ==========================================
+// APP OPEN AD
+// ==========================================
+
+let appOpenAd = null;
+let appOpenAdLoaded = false;
+let lastAppOpenAdShown = 0;
+const APP_OPEN_AD_COOLDOWN = 30000; // 30 seconds cooldown between app open ads
+
+/**
+ * Load an app open ad
+ */
+export const loadAppOpenAd = () => {
+    const adUnitId = getAdUnitId('appOpen');
+
+    if (!adUnitId) {
+        console.warn('No app open ad unit ID available for this platform');
+        return;
+    }
+
+    console.log('📺 Loading app open ad...');
+
+    try {
+        appOpenAd = AppOpenAd.createForAdRequest(adUnitId, {
+            requestNonPersonalizedAdsOnly: true,
+        });
+    } catch (error) {
+        console.error('Failed to create app open ad:', error);
+        return;
+    }
+
+    // Handle ad loaded
+    const unsubscribeLoaded = appOpenAd.addAdEventListener(AdEventType.LOADED, () => {
+        console.log('✅ App open ad loaded');
+        appOpenAdLoaded = true;
+    });
+
+    // Handle ad closed
+    const unsubscribeClosed = appOpenAd.addAdEventListener(AdEventType.CLOSED, () => {
+        console.log('📺 App open ad closed');
+        appOpenAdLoaded = false;
+        // Preload next ad
+        loadAppOpenAd();
+    });
+
+    // Handle errors
+    const unsubscribeError = appOpenAd.addAdEventListener(AdEventType.ERROR, (error) => {
+        console.error('❌ App open ad error:', error);
+        appOpenAdLoaded = false;
+    });
+
+    // Load the ad
+    appOpenAd.load();
+
+    return () => {
+        unsubscribeLoaded();
+        unsubscribeClosed();
+        unsubscribeError();
+    };
+};
+
+/**
+ * Show app open ad (with cooldown check)
+ * @returns {Promise<boolean>} - true if ad shown, false if not available or on cooldown
+ */
+export const showAppOpenAd = async () => {
+    const now = Date.now();
+
+    // Check cooldown
+    if (now - lastAppOpenAdShown < APP_OPEN_AD_COOLDOWN) {
+        console.log('App open ad on cooldown');
+        return false;
+    }
+
+    if (!appOpenAdLoaded || !appOpenAd) {
+        console.warn('App open ad not loaded');
+        return false;
+    }
+
+    try {
+        await appOpenAd.show();
+        lastAppOpenAdShown = now;
+        return true;
+    } catch (error) {
+        console.error('Error showing app open ad:', error);
+        return false;
+    }
+};
+
+/**
+ * Check if app open ad is ready
+ */
+export const isAppOpenAdReady = () => appOpenAdLoaded;
+
+// ==========================================
+// INTERSTITIAL COUNTER (show every 3rd action)
+// ==========================================
+
+let interstitialActionCounter = 0;
+const INTERSTITIAL_FREQUENCY = 3; // Show interstitial every 3rd note generation
+
+/**
+ * Increment action counter and show interstitial if threshold reached
+ * @returns {Promise<boolean>} - true if ad was shown
+ */
+export const maybeShowInterstitial = async () => {
+    interstitialActionCounter++;
+    console.log(`📊 Interstitial counter: ${interstitialActionCounter}/${INTERSTITIAL_FREQUENCY}`);
+
+    if (interstitialActionCounter >= INTERSTITIAL_FREQUENCY) {
+        interstitialActionCounter = 0; // Reset counter
+
+        if (interstitialAdLoaded && interstitialAd) {
+            try {
+                await interstitialAd.show();
+                return true;
+            } catch (error) {
+                console.error('Error showing interstitial:', error);
+            }
+        }
+    }
+    return false;
+};
+
+/**
+ * Reset interstitial counter (e.g., when user purchases subscription)
+ */
+export const resetInterstitialCounter = () => {
+    interstitialActionCounter = 0;
+};
+
+// ==========================================
 // INITIALIZATION
 // ==========================================
 
@@ -308,6 +443,9 @@ export const initializeAds = () => {
 
         // Preload interstitial ad (ready but not shown yet)
         loadInterstitialAd();
+
+        // Preload app open ad
+        loadAppOpenAd();
 
         console.log('✅ Ads initialized');
     } catch (error) {
@@ -330,6 +468,7 @@ export {
     BannerAdSize,
     InterstitialAd,
     RewardedAd,
+    AppOpenAd,
     AdEventType,
     RewardedAdEventType,
 };
@@ -342,5 +481,10 @@ export default {
     loadInterstitialAd,
     showInterstitialAd,
     isInterstitialAdReady,
+    loadAppOpenAd,
+    showAppOpenAd,
+    isAppOpenAdReady,
+    maybeShowInterstitial,
+    resetInterstitialCounter,
     areAdsEnabled,
 };

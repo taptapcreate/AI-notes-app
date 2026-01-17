@@ -64,11 +64,8 @@ export default function WalkthroughScreen({ navigation, route }) {
             if (isFromSettings) {
                 navigation.goBack();
             } else {
-                if (completeOnboarding) {
-                    await completeOnboarding();
-                }
-                // Navigate to MainTabs with Credits tab
-                navigation.replace('MainTabs', { screen: 'Credits' });
+                // Navigate to Onboarding Paywall before MainTabs (Paywall will handle completion)
+                navigation.replace('OnboardingPaywall');
             }
         }
     };

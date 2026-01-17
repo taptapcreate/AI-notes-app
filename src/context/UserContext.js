@@ -38,6 +38,15 @@ export const UserProvider = ({ children }) => {
         initializeCredits();
         initializeConfig();
         checkOnboardingStatus();
+
+        // Listen for real-time subscription updates
+        const setupListener = async () => {
+            await PurchaseService.addCustomerInfoUpdateListener((customerInfo) => {
+                console.log('🔔 RevenueCat Update Received in UserContext');
+                handleCustomerInfoUpdate(customerInfo);
+            });
+        };
+        setupListener();
     }, []);
 
     const checkOnboardingStatus = async () => {
@@ -132,6 +141,40 @@ export const UserProvider = ({ children }) => {
         }
     };
 
+    // Handle real-time updates from RevenueCat
+    const handleCustomerInfoUpdate = (customerInfo) => {
+        try {
+            if (!customerInfo || !customerInfo.entitlements) return;
+
+            const activeEntitlements = customerInfo.entitlements.active;
+            const hasProAccess = activeEntitlements['AI Notes - Write and Reply Pro'] !== undefined;
+
+            setHasProSubscription(hasProAccess);
+
+            if (hasProAccess) {
+                const entitlement = activeEntitlements['AI Notes - Write and Reply Pro'];
+                const productId = entitlement?.productIdentifier || '';
+
+                console.log('🔍 Processing Subscription Product ID:', productId);
+
+                if (productId.includes('monthly')) {
+                    setSubscriptionType('monthly');
+                } else if (productId.includes('weekly')) {
+                    setSubscriptionType('weekly');
+                } else {
+                    // Fallback or Unknown
+                    setSubscriptionType('monthly'); // Assume monthly if unknown/pro?
+                }
+            } else {
+                setSubscriptionType(null);
+            }
+
+            console.log('✅ Subscription state updated via listener:', hasProAccess);
+        } catch (error) {
+            console.error('Error handling customer info update:', error);
+        }
+    };
+
     // Check subscription status via AdvancedSubscriptionManager
     const checkSubscriptionStatus = async () => {
         try {
@@ -160,11 +203,17 @@ export const UserProvider = ({ children }) => {
 
                     if (result.hasProAccess && result.customerInfo) {
                         const activeEntitlements = result.customerInfo.entitlements.active;
-                        if (activeEntitlements) {
-                            const productId = Object.values(activeEntitlements)[0]?.productIdentifier || '';
+                        const entitlement = activeEntitlements['AI Notes - Write and Reply Pro'];
+
+                        if (entitlement) {
+                            const productId = entitlement.productIdentifier || '';
+                            console.log('🔍 Fallback Check Product ID:', productId);
+
                             if (productId.includes('weekly')) {
                                 setSubscriptionType('weekly');
                             } else if (productId.includes('monthly')) {
+                                setSubscriptionType('monthly');
+                            } else {
                                 setSubscriptionType('monthly');
                             }
                         }

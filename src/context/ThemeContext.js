@@ -23,8 +23,8 @@ export const ThemeProvider = ({ children }) => {
             if (savedTheme !== null) {
                 setIsDark(savedTheme === 'dark');
             } else {
-                // Use system preference by default
-                setIsDark(systemColorScheme === 'dark');
+                // Default to Dark Mode for new installs
+                setIsDark(true);
             }
         } catch (error) {
             console.error('Failed to load theme preference:', error);

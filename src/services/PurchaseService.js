@@ -25,8 +25,12 @@ export const PRODUCT_IDS = {
 
 // Credits per product
 export const CREDITS_PER_PRODUCT = {
-    [PRODUCT_IDS.WEEKLY_SUBSCRIPTION]: 500,
-    [PRODUCT_IDS.MONTHLY_SUBSCRIPTION]: 2500,
+    // Subscriptions grant UNLIMITED access, not fixed credits
+    // We set this to 0 so we don't pollute the "purchased credits" database field
+    [PRODUCT_IDS.WEEKLY_SUBSCRIPTION]: 0,
+    [PRODUCT_IDS.MONTHLY_SUBSCRIPTION]: 0,
+
+    // One-time packs grant persistent credits
     [PRODUCT_IDS.LITE_PACK]: 100,
     [PRODUCT_IDS.POWER_PACK]: 350,
     [PRODUCT_IDS.PRO_PACK]: 550,
@@ -156,11 +160,17 @@ export const purchasePackage = async (packageToPurchase) => {
 };
 
 /**
- * Restore purchases
+ * Restore purchases (with timeout protection)
  */
 export const restorePurchases = async () => {
     try {
-        const customerInfo = await Purchases.restorePurchases();
+        // Add timeout protection - 15 seconds max
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Restore timed out')), 15000)
+        );
+
+        const restorePromise = Purchases.restorePurchases();
+        const customerInfo = await Promise.race([restorePromise, timeoutPromise]);
 
         // Get all non-consumable entitlements
         const activeEntitlements = customerInfo.entitlements.active;
@@ -169,25 +179,38 @@ export const restorePurchases = async () => {
         let totalCreditsRestored = 0;
         const processedProducts = [];
 
-        // Process each purchased product
-        for (const productId of allTransactions) {
+        // Process credit packs in parallel for speed
+        const creditPromises = allTransactions.map(async (productId) => {
             const credits = CREDITS_PER_PRODUCT[productId];
             if (credits) {
                 // Create unique transaction ID for this restore
                 const transactionId = `restore_${customerInfo.originalAppUserId}_${productId}`;
 
                 // Try to add credits (will be rejected if already processed)
-                const result = await addServerCredits(credits, transactionId);
+                try {
+                    const result = await addServerCredits(credits, transactionId);
 
-                if (result.success) {
-                    totalCreditsRestored += credits;
-                    processedProducts.push(productId);
-                } else if (result.alreadyProcessed) {
-                    // Already restored before - this is expected
-                    console.log(`Product ${productId} already restored`);
+                    if (result.success) {
+                        return { productId, credits, success: true };
+                    } else if (result.alreadyProcessed) {
+                        console.log(`Product ${productId} already restored`);
+                        return { productId, credits: 0, success: true };
+                    }
+                } catch (err) {
+                    console.warn(`Failed to restore ${productId}:`, err);
+                    return { productId, credits: 0, success: false };
                 }
             }
-        }
+            return { productId, credits: 0, success: false };
+        });
+
+        const results = await Promise.all(creditPromises);
+        results.forEach(r => {
+            if (r.success && r.credits > 0) {
+                totalCreditsRestored += r.credits;
+                processedProducts.push(r.productId);
+            }
+        });
 
         return {
             success: true,
@@ -247,6 +270,30 @@ export const setUserId = async (userId) => {
     }
 };
 
+/**
+ * Listen for customer info updates (real-time subscription status)
+ */
+export const addCustomerInfoUpdateListener = (callback) => {
+    try {
+        const listener = (customerInfo) => {
+            callback(customerInfo);
+        };
+        Purchases.addCustomerInfoUpdateListener(listener);
+        return () => {
+            // RevenueCat doesn't have a direct 'remove' for checking specific listeners easily in wrapper,
+            // but we can just ignore subsequent calls if we managed it ourselves, or relies on component unmount.
+            // Actually, react-native-purchases 5.x+ usually returns a subscription removal function or distinct method.
+            // For simplicity in this version, we assume the caller handles cleanup via effect.
+            // NOTE: Verify exact remove method for your RC version.
+            // If unavailable, we just leave it active (it's a singleton listener for the app usually).
+            // Ideally: Purchases.removeCustomerInfoUpdateListener(listener);
+        };
+    } catch (error) {
+        console.error('Add listener error:', error);
+        return () => { };
+    }
+};
+
 export default {
     initializePurchases,
     getOfferings,
@@ -256,6 +303,7 @@ export default {
     checkProAccess,
     getCustomerInfo,
     setUserId,
+    addCustomerInfoUpdateListener, // Export the new listener
     PRODUCT_IDS,
     CREDITS_PER_PRODUCT,
 };

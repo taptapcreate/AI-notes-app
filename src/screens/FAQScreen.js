@@ -20,65 +20,144 @@ if (Platform.OS === 'android') {
 }
 
 const FAQS = [
+    // ============ GETTING STARTED ============
     {
         id: '1',
-        category: 'Credits & Plans',
-        question: 'How do I earn free credits?',
-        answer: 'You can earn free credits by checking in daily. Simply open the app and go to the "Buy Credits" screen to find your daily rewards!'
+        category: 'Getting Started',
+        question: 'What is AI Notes?',
+        answer: 'AI Notes is a powerful AI-powered note-taking and reply generation app. It helps you transform any content (text, images, voice recordings, PDFs, and websites) into organized, professional notes. You can also generate smart replies for emails, messages, and more.'
     },
     {
         id: '2',
-        category: 'Credits & Plans',
-        question: 'Do my purchased credits expire?',
-        answer: 'No, purchased credits never expire. They are added to your permanent balance and remain yours until you use them.'
+        category: 'Getting Started',
+        question: 'How do I create my first note?',
+        answer: 'Go to the "Notes" tab, select an input type (Text, Image, Voice, PDF, or Website), provide your content, choose your preferred note length/format/tone, and tap "Generate Notes". The AI will transform your content into organized notes instantly!'
     },
+
+    // ============ SMART NOTES FEATURES ============
     {
         id: '3',
-        category: 'Credits & Plans',
-        question: 'How does the Pro Subscription work?',
-        answer: 'The Pro Subscription gives you UNLIMITED AI access for the duration of your plan (Weekly or Monthly). You won\'t need to use credits for generation while your subscription is active. You also get priority processing and zero ads.'
+        category: 'Smart Notes',
+        question: 'What input types are supported for note generation?',
+        answer: '• Text: Type or paste any content directly\n• Image: Upload photos of documents, whiteboards, or handwritten notes - AI extracts and summarizes the text\n• Voice: Record audio memos and lectures - AI transcribes and creates notes\n• PDF: Upload PDF documents for automatic summarization\n• Website: Paste any article URL to generate notes from web content\n• Calendar: Import calendar events to generate meeting prep notes\n• Location: Get notes about your current location'
     },
     {
         id: '4',
-        category: 'Credits & Plans',
-        question: 'How do I restore my purchases?',
-        answer: 'Go to the "Premium Access" page (available from Settings or the Home screen) and scroll down to tap "Restore Purchases". Ensure you are logged in with the same Apple ID or Google Play account used to make the purchase.'
+        category: 'Smart Notes',
+        question: 'What are note length options?',
+        answer: '• Brief: Quick highlights and key points only (100-200 words)\n• Standard: Balanced coverage with main ideas (300-500 words)\n• Detailed: Comprehensive notes with examples (600-900 words)\n• Extended: In-depth analysis with full context (1000+ words)'
     },
     {
         id: '5',
-        category: 'Privacy',
-        question: 'Is my data private?',
-        answer: 'Yes. Your notes are stored locally on your device. We prioritize your privacy and do not sell your personal data to third parties.'
+        category: 'Smart Notes',
+        question: 'What formats can I generate notes in?',
+        answer: '• Bullet Points: Clean bullet list format\n• Narrative: Flowing prose paragraphs\n• Outline: Hierarchical structure with headings\n• Numbered: Numbered list format\n\nYou can also choose different tones: Professional, Casual, Academic, or Simple.'
     },
     {
         id: '6',
-        category: 'Privacy',
-        question: 'Do you store my voice recordings?',
-        answer: 'Voice recordings are processed temporarily to generate the transcript and notes, but the audio files are not permanently stored on our servers after processing is complete.'
+        category: 'Smart Notes',
+        question: 'Can I regenerate notes with different settings?',
+        answer: 'Yes! After generating notes, tap the "Regenerate" button to create new notes with different length, format, or tone settings. Each regeneration uses 1 credit.'
     },
+
+    // ============ SMART REPLY ============
     {
         id: '7',
-        category: 'Features',
-        question: 'Can I use the app offline?',
-        answer: 'You can view and read your existing notes and history offline. However, generating new AI notes requires an active internet connection.'
+        category: 'Smart Reply',
+        question: 'What is Smart Reply?',
+        answer: 'Smart Reply helps you craft perfect responses to emails, messages, and texts. Paste the message you received, select your desired tone and style, and AI generates multiple reply options for you to choose from.'
     },
     {
         id: '8',
-        category: 'Features',
-        question: 'What languages are supported?',
-        answer: 'AI Notes supports generation in multiple languages including English, Spanish, French, German, Italian, Hindi, and Japanese. You can select your preferred output language in the Note creation screen.'
+        category: 'Smart Reply',
+        question: 'How many reply options do I get?',
+        answer: 'Free users get 3 reply variations to choose from. Pro subscribers get 5-6 variations, giving you more options to find the perfect response.'
     },
     {
         id: '9',
-        category: 'Troubleshooting',
-        question: 'Why did generation fail?',
-        answer: 'Generation might fail due to a weak internet connection or if the content (e.g., a YouTube video) has restrictions. Please check your connection and try again. If the issue persists, try "Text" mode and paste the content manually.'
+        category: 'Smart Reply',
+        question: 'What tones and styles are available?',
+        answer: 'Tones: Friendly, Professional, Casual, Formal, Diplomatic, Empathetic, Assertive, Apologetic\n\nStyles: Reply (standard response), Politely Decline, Appreciate & Accept, Request More Info, Follow Up, Give Feedback'
     },
+
+    // ============ CREDITS & PRICING ============
     {
         id: '10',
+        category: 'Credits & Plans',
+        question: 'How does the credit system work?',
+        answer: '• Each note generation costs 1 credit\n• Each smart reply costs 1 credit\n• Free users get 3 free credits daily (resets at midnight)\n• Buy credit packs for more usage\n• Pro subscribers get unlimited usage'
+    },
+    {
+        id: '11',
+        category: 'Credits & Plans',
+        question: 'Do my purchased credits expire?',
+        answer: 'No! Purchased credits never expire. They remain in your account until you use them. Only the 3 free daily credits reset each day.'
+    },
+    {
+        id: '12',
+        category: 'Credits & Plans',
+        question: 'What does the Pro Subscription include?',
+        answer: '• Unlimited AI usage (no credit limits)\n• No ads anywhere in the app\n• More reply variations to choose from\n• Priority processing\n• All features unlocked\n\nAvailable as Weekly or Monthly plans. Cancel anytime from your device settings.'
+    },
+    {
+        id: '13',
+        category: 'Credits & Plans',
+        question: 'How do I restore my purchases on a new device?',
+        answer: 'Open the app, go to the Credits screen, and tap "Restore Purchases". Make sure you are signed in with the same Apple ID or Google account used for the original purchase. Your subscription and any unused purchased credits will be restored.'
+    },
+    {
+        id: '14',
+        category: 'Credits & Plans',
+        question: 'What is the Recovery Code?',
+        answer: 'Your Recovery Code is an 8-character code unique to your account. It allows you to recover your purchased credits if you switch devices or reinstall the app. Find it in Settings or the Credits screen. Keep it safe!'
+    },
+
+    // ============ LANGUAGES ============
+    {
+        id: '15',
+        category: 'Languages',
+        question: 'What languages are supported?',
+        answer: 'AI Notes supports note generation in multiple languages: English, Spanish, French, German, Italian, Portuguese, Dutch, Russian, Japanese, Korean, Chinese, Hindi, Arabic, and more. Select your language before generating.'
+    },
+
+    // ============ PRIVACY & DATA ============
+    {
+        id: '16',
+        category: 'Privacy',
+        question: 'Is my data private and secure?',
+        answer: 'Yes! Your notes are stored locally on your device. We do not sell or share your personal data. Content is only processed for AI generation and is not stored on our servers after processing.'
+    },
+    {
+        id: '17',
+        category: 'Privacy',
+        question: 'How do I delete my notes and data?',
+        answer: 'You can delete individual notes by swiping left in the History screen. To delete ALL data, go to Settings > Danger Zone > Delete All Data. This permanently removes all notes, replies, and settings.'
+    },
+
+    // ============ TROUBLESHOOTING ============
+    {
+        id: '18',
         category: 'Troubleshooting',
-        question: 'How do I delete my data?',
-        answer: 'You can delete individual notes by swiping left on them in the History screen. To delete ALL data, go to Settings > Danger Zone > Delete All Data. This action is irreversible.'
+        question: 'Why did my note generation fail?',
+        answer: 'Common reasons:\n• Weak internet connection\n• Content too short or too long\n• Website blocking automated access\n• Server temporarily busy\n\nTry again, or paste content directly using Text mode.'
+    },
+    {
+        id: '19',
+        category: 'Troubleshooting',
+        question: 'Website summarization is not working?',
+        answer: 'Some websites block automated content reading. If a website fails, manually copy the article text and use "Text" input mode instead. This always works!'
+    },
+    {
+        id: '20',
+        category: 'Troubleshooting',
+        question: 'Can I use the app offline?',
+        answer: 'You can view and read your existing notes and history offline. Generating new AI content requires an internet connection.'
+    },
+    {
+        id: '21',
+        category: 'Troubleshooting',
+        question: 'My subscription is not recognized?',
+        answer: 'Tap "Restore Purchases" in the Credits screen. If that doesn\'t work, try signing out and back into your Apple/Google account, then restore again. Contact support if issues persist.'
     },
 ];
 

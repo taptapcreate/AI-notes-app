@@ -19,6 +19,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useUser } from '../context/UserContext';
 import { useHistory } from '../context/HistoryContext';
 import { useStaggerAnimation, AnimatedSection } from '../hooks/useStaggerAnimation';
+import { BannerAd, BannerAdSize, adUnitIDs, areAdsEnabled } from '../services/AdService';
 
 // App Version
 const APP_VERSION = '1.0.0';
@@ -213,6 +214,19 @@ export default function SettingsScreen({ navigation }) {
 
     return (
         <View style={styles.container}>
+            {/* Top Banner Ad - Hidden for Pro subscribers */}
+            {areAdsEnabled && !credits.hasProSubscription && (
+                <View style={{ alignItems: 'center', paddingVertical: 8, backgroundColor: colors.background }}>
+                    <BannerAd
+                        unitId={adUnitIDs.banner}
+                        size={BannerAdSize.BANNER}
+                        requestOptions={{
+                            requestNonPersonalizedAdsOnly: true,
+                        }}
+                    />
+                </View>
+            )}
+
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
                 {/* Profile Section */}
@@ -463,6 +477,19 @@ export default function SettingsScreen({ navigation }) {
                 </View>
 
             </ScrollView>
+
+            {/* Bottom Banner Ad - Fixed at bottom, hidden for Pro subscribers */}
+            {areAdsEnabled && !credits.hasProSubscription && (
+                <View style={{ alignItems: 'center', paddingVertical: 8, backgroundColor: colors.background, borderTopWidth: 1, borderTopColor: colors.glassBorder }}>
+                    <BannerAd
+                        unitId={adUnitIDs.banner}
+                        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+                        requestOptions={{
+                            requestNonPersonalizedAdsOnly: true,
+                        }}
+                    />
+                </View>
+            )}
         </View>
     );
 }

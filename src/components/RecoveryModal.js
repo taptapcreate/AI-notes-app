@@ -34,6 +34,12 @@ const RecoveryModal = ({
     const [showCodeInput, setShowCodeInput] = useState(false);
     const [code, setCode] = useState('');
     const [isRecovering, setIsRecovering] = useState(false);
+    // Local state for restore in case prop doesn't handle it or we need local override
+    const [localIsRestoring, setLocalIsRestoring] = useState(false);
+
+    // Use prop if available, otherwise local
+    const setIsRestoring = (val) => setLocalIsRestoring(val);
+    const isLoadingRestore = isRestoring || localIsRestoring;
 
     const handleRecoverCode = async () => {
         if (!code.trim()) {
@@ -95,17 +101,53 @@ const RecoveryModal = ({
         }
     };
 
+    /**
+     * Non-blocking Restore:
+     * Shows spinner for max 2 seconds, then dismisses it to allow user interaction.
+     * Result appears via Alert later.
+     */
     const handleRestorePurchases = async () => {
-        try {
-            const result = await onRestorePurchases();
-            if (result?.success) {
-                Alert.alert('Success! 🎉', 'Your purchases have been restored!', [
-                    { text: 'OK', onPress: onClose }
-                ]);
+        // 1. Show loading initially
+        if (setIsRestoring) setIsRestoring(true);
+
+        // 2. Trigger async restore
+        const restorePromise = onRestorePurchases();
+
+        // 3. Track completion
+        let isDone = false;
+
+        restorePromise.then((result) => {
+            isDone = true;
+            // Stop loading when done (if not already stopped by timeout)
+            if (setIsRestoring) setIsRestoring(false);
+
+            // Show result with slight delay to ensure UI updates first
+            setTimeout(() => {
+                if (result?.success) {
+                    Alert.alert('Success! 🎉', 'Your purchases have been restored!', [
+                        { text: 'OK', onPress: onClose }
+                    ]);
+                } else {
+                    Alert.alert('Info', result?.error || 'No previous purchases found for this account.');
+                }
+            }, 100);
+        }).catch(err => {
+            isDone = true;
+            if (setIsRestoring) setIsRestoring(false);
+            console.error('Restore error in modal:', err);
+            setTimeout(() => {
+                Alert.alert('Error', 'Failed to restore purchases. Please check your connection.');
+            }, 100);
+        });
+
+        // 4. Force UI unlock after 2 seconds (Fire & ForgetUX)
+        setTimeout(() => {
+            if (!isDone) {
+                // Unblock UI so user can interact / close modal
+                if (setIsRestoring) setIsRestoring(false);
+                // Optional: Toast "Checking in background..."
             }
-        } catch (error) {
-            Alert.alert('No Purchases Found', 'No previous purchases found for this account.');
-        }
+        }, 2000);
     };
 
     const styles = createStyles(colors);
@@ -129,7 +171,7 @@ const RecoveryModal = ({
                         {/* Header */}
                         <View style={styles.header}>
                             <Ionicons name="refresh-circle" size={48} color={colors.primary} />
-                            <Text style={styles.title}>Welcome Back!</Text>
+                            <Text style={styles.title}>Restore Account</Text>
                             <Text style={styles.subtitle}>
                                 Restore your previous purchases or recover your credit balance
                             </Text>
@@ -150,7 +192,7 @@ const RecoveryModal = ({
                                 <TouchableOpacity
                                     style={styles.optionButton}
                                     onPress={handleRestorePurchases}
-                                    disabled={isRestoring}
+                                    disabled={isLoadingRestore}
                                 >
                                     <LinearGradient
                                         colors={[colors.primary, colors.secondary]}
@@ -158,7 +200,7 @@ const RecoveryModal = ({
                                         start={{ x: 0, y: 0 }}
                                         end={{ x: 1, y: 0 }}
                                     >
-                                        {isRestoring ? (
+                                        {isLoadingRestore ? (
                                             <ActivityIndicator color="#fff" />
                                         ) : (
                                             <>

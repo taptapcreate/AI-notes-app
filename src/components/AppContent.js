@@ -23,20 +23,24 @@ const AppContent = ({ children }) => {
         checkFirstLaunch();
     }, [isLoading]);
 
-    const checkFirstLaunch = async () => {
+    const checkFirstLaunch = () => {
         // Wait for user context to load
         if (isLoading) return;
 
-        try {
-            const hasShown = await AsyncStorage.getItem(RECOVERY_SHOWN_KEY);
+        // Defer check to allow app to render and animations to finish
+        // This prevents the modal from blocking startup or appearing before the UI is ready
+        setTimeout(async () => {
+            try {
+                const hasShown = await AsyncStorage.getItem(RECOVERY_SHOWN_KEY);
 
-            // Show modal if never shown before (Fresh Install)
-            if (!hasShown) {
-                setShowRecoveryModal(true);
+                // Show modal if never shown before (Fresh Install)
+                if (!hasShown) {
+                    setShowRecoveryModal(true);
+                }
+            } catch (error) {
+                console.log('Error checking first launch:', error);
             }
-        } catch (error) {
-            console.log('Error checking first launch:', error);
-        }
+        }, 2500);
     };
 
     const handleClose = async () => {

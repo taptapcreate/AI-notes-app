@@ -3,7 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet, Platform, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
+import { View, StyleSheet, Platform, TouchableOpacity, ActivityIndicator, Text, AppState } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
@@ -17,6 +17,7 @@ import PaymentScreen from './src/screens/PaymentScreen';
 import CreditsScreen from './src/screens/CreditsScreen';
 import IntroScreen from './src/screens/IntroScreen';
 import WalkthroughScreen from './src/screens/WalkthroughScreen';
+import OnboardingPaywallScreen from './src/screens/OnboardingPaywallScreen';
 import FAQScreen from './src/screens/FAQScreen';
 import NoteDetailScreen from './src/screens/NoteDetailScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
@@ -24,7 +25,7 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { HistoryProvider } from './src/context/HistoryContext';
 import { FoldersProvider } from './src/context/FoldersContext';
 import { UserProvider, useUser } from './src/context/UserContext';
-import AdService, { initializeAds as initAds } from './src/services/AdService';
+import AdService, { initializeAds as initAds, showAppOpenAd, areAdsEnabled } from './src/services/AdService';
 import NotificationService from './src/services/NotificationService';
 import AppContent from './src/components/AppContent';
 
@@ -104,7 +105,7 @@ function TabNavigator() {
         name="Home"
         component={HomeScreen}
         options={{
-          headerTitle: 'Ai Notes',
+          headerTitle: 'Ai Notes - Write & Reply',
         }}
       />
       <Tab.Screen
@@ -195,6 +196,11 @@ function MainApp() {
         <Stack.Screen
           name="Walkthrough"
           component={WalkthroughScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="OnboardingPaywall"
+          component={OnboardingPaywallScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen
@@ -306,6 +312,30 @@ export default function App() {
     );
 
     return cleanup;
+  }, []);
+
+  // App Open Ad - show when app comes back to foreground
+  React.useEffect(() => {
+    if (!areAdsEnabled) return;
+
+    let lastBackground = 0;
+
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'background') {
+        lastBackground = Date.now();
+      } else if (nextAppState === 'active') {
+        // Only show app open ad if user was away for more than 30 seconds
+        const timeSinceBackground = Date.now() - lastBackground;
+        if (lastBackground > 0 && timeSinceBackground > 30000) {
+          console.log('🚀 Showing app open ad after returning from background');
+          showAppOpenAd();
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   // Show loading while fonts load

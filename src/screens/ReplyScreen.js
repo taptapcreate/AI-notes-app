@@ -10,6 +10,7 @@ import {
     Alert,
     Modal,
     Animated,
+    AppState,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,9 +21,10 @@ import { useTheme } from '../context/ThemeContext';
 import { useHistory } from '../context/HistoryContext';
 import { useUser } from '../context/UserContext';
 import { generateReply, generateFollowUp, analyzeSentiment, translateText, polishText } from '../services/api';
-import { BannerAd, BannerAdSize, InterstitialAd, AdEventType, adUnitIDs, areAdsEnabled } from '../services/AdService';
+import { BannerAd, BannerAdSize, InterstitialAd, AdEventType, adUnitIDs, areAdsEnabled, maybeShowInterstitial } from '../services/AdService';
 import { useEffect } from 'react';
 import { useStaggerAnimation, AnimatedSection } from '../hooks/useStaggerAnimation';
+import { showNoteReadyNotification } from '../services/NotificationService';
 
 const REPLY_LENGTHS = ['Brief', 'Standard', 'Detailed'];
 
@@ -255,12 +257,17 @@ export default function ReplyScreen() {
                 addReply(result[0], { tone: selectedTone, style: selectedStyle, format: selectedFormat });
             }
 
-            // Show interstitial ad after generation for non-pro users
-            if (areAdsEnabled && !hasProSubscription && interstitialLoaded && interstitial) {
+            // Show interstitial ad every 3rd generation for non-pro users
+            if (!hasProSubscription) {
                 // Show ad with a small delay
                 setTimeout(() => {
-                    interstitial.show().catch(err => console.error('Error showing interstitial:', err));
+                    maybeShowInterstitial();
                 }, 800);
+            }
+
+            // Show notification if app is in background
+            if (AppState.currentState.match(/inactive|background/)) {
+                await showNoteReadyNotification('reply');
             }
         } catch (error) {
             console.error('Error generating reply:', error);
@@ -582,6 +589,19 @@ export default function ReplyScreen() {
 
     return (
         <View style={styles.container}>
+            {/* Top Banner Ad - Hidden for Pro subscribers */}
+            {areAdsEnabled && !hasProSubscription && (
+                <View style={{ alignItems: 'center', paddingVertical: 8, backgroundColor: colors.background }}>
+                    <BannerAd
+                        unitId={adUnitIDs.banner}
+                        size={BannerAdSize.BANNER}
+                        requestOptions={{
+                            requestNonPersonalizedAdsOnly: true,
+                        }}
+                    />
+                </View>
+            )}
+
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Message Input */}
                 <View style={styles.section}>
@@ -1246,20 +1266,7 @@ export default function ReplyScreen() {
                         </View>
                     )
                 }
-                {/* Banner Ad */}
-                {
-                    areAdsEnabled && (
-                        <View style={{ alignItems: 'center', marginTop: 20 }}>
-                            <BannerAd
-                                unitId={adUnitIDs.banner}
-                                size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-                                requestOptions={{
-                                    requestNonPersonalizedAdsOnly: true,
-                                }}
-                            />
-                        </View>
-                    )
-                }
+
 
                 {/* Recent History Section */}
                 <View style={styles.section}>
@@ -1312,6 +1319,19 @@ export default function ReplyScreen() {
                 </View>
 
             </ScrollView >
+
+            {/* Bottom Banner Ad - Fixed at bottom, hidden for Pro subscribers */}
+            {areAdsEnabled && !hasProSubscription && (
+                <View style={{ alignItems: 'center', paddingVertical: 8, backgroundColor: colors.background, borderTopWidth: 1, borderTopColor: colors.glassBorder }}>
+                    <BannerAd
+                        unitId={adUnitIDs.banner}
+                        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+                        requestOptions={{
+                            requestNonPersonalizedAdsOnly: true,
+                        }}
+                    />
+                </View>
+            )}
 
             {/* Translate Language Modal */}
             <Modal

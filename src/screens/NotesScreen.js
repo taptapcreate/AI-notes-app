@@ -13,6 +13,9 @@ import {
     Share,
     Modal,
     Animated,
+    AppState,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,8 +35,9 @@ import { useHistory } from '../context/HistoryContext';
 import { useFolders } from '../context/FoldersContext';
 import { useUser } from '../context/UserContext';
 import { generateNotes, generateFollowUp, streamNotes } from '../services/api';
-import { BannerAd, BannerAdSize, InterstitialAd, AdEventType, adUnitIDs, areAdsEnabled } from '../services/AdService';
+import { BannerAd, BannerAdSize, InterstitialAd, AdEventType, adUnitIDs, areAdsEnabled, maybeShowInterstitial } from '../services/AdService';
 import { useStaggerAnimation, AnimatedSection } from '../hooks/useStaggerAnimation';
+import { showNoteReadyNotification } from '../services/NotificationService';
 
 const { width } = Dimensions.get('window');
 
@@ -140,6 +144,7 @@ export default function NotesScreen() {
     const [format, setFormat] = useState('bullet');
     const [tone, setTone] = useState('professional');
     const [language, setLanguage] = useState('English');
+    const [showLanguageModal, setShowLanguageModal] = useState(false);
     const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
     const [showTemplates, setShowTemplates] = useState(true);
     const [showLength, setShowLength] = useState(true);
@@ -457,16 +462,21 @@ export default function NotesScreen() {
                     // Deduct credit only on success
                     await useCredits(1);
 
-                    // Show interstitial ad after generation for non-pro users
-                    if (areAdsEnabled && !hasProSubscription && interstitialLoaded && interstitial) {
+                    // Show interstitial ad every 3rd generation for non-pro users
+                    if (!getCreditData().hasProSubscription) {
                         setTimeout(() => {
-                            interstitial.show().catch(err => console.error('Error showing interstitial:', err));
+                            maybeShowInterstitial();
                         }, 800);
                     }
 
                     // Save to history with folder
                     addNote(finalText, selectedFolder);
                     setIsLoading(false);
+
+                    // Show notification if app is in background
+                    if (AppState.currentState.match(/inactive|background/)) {
+                        await showNoteReadyNotification('note');
+                    }
                 },
                 // onError - handle errors
                 (error) => {
@@ -993,278 +1003,296 @@ export default function NotesScreen() {
     };
 
     return (
-        <View style={styles.container}>
-            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-                {/* Input Type Tabs */}
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.tabScrollContainer}
-                    style={styles.tabScroll}
-                >
-                    {INPUT_TYPES.map((type) => (
-                        <TouchableOpacity
-                            key={type.id}
-                            style={[styles.tab, inputType === type.id && styles.tabActive]}
-                            onPress={() => { setInputType(type.id); clearInput(); }}
-                        >
-                            <Ionicons
-                                name={type.icon}
-                                size={16}
-                                color={inputType === type.id ? '#fff' : colors.textMuted}
-                            />
-                            <Text style={[styles.tabText, inputType === type.id && styles.tabTextActive]}>
-                                {type.label}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
+            <View style={styles.container}>
+                {/* Top Banner Ad - Hidden for Pro subscribers */}
+                {areAdsEnabled && !getCreditData().hasProSubscription && (
+                    <View style={{ alignItems: 'center', paddingVertical: 8, backgroundColor: colors.background }}>
+                        <BannerAd
+                            unitId={adUnitIDs.banner}
+                            size={BannerAdSize.BANNER}
+                            requestOptions={{
+                                requestNonPersonalizedAdsOnly: true,
+                            }}
+                        />
+                    </View>
+                )}
 
-                {/* Input Area */}
-                {renderInputArea()}
-
-                {/* Template Carousel (Format) */}
-                <View style={styles.section}>
-                    <TouchableOpacity
-                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showTemplates ? 10 : 0 }}
-                        onPress={() => setShowTemplates(!showTemplates)}
+                <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+                    {/* Input Type Tabs */}
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.tabScrollContainer}
+                        style={styles.tabScroll}
                     >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={styles.sectionTitle}>Chose Template</Text>
-                            <Ionicons name={showTemplates ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
-                        </View>
-                        {showTemplates && (
-                            <TouchableOpacity onPress={() => setShowTemplatesModal(true)}>
-                                <Text style={{ color: colors.primary, fontWeight: '600' }}>See All</Text>
+                        {INPUT_TYPES.map((type) => (
+                            <TouchableOpacity
+                                key={type.id}
+                                style={[styles.tab, inputType === type.id && styles.tabActive]}
+                                onPress={() => { setInputType(type.id); clearInput(); }}
+                            >
+                                <Ionicons
+                                    name={type.icon}
+                                    size={16}
+                                    color={inputType === type.id ? '#fff' : colors.textMuted}
+                                />
+                                <Text style={[styles.tabText, inputType === type.id && styles.tabTextActive]}>
+                                    {type.label}
+                                </Text>
                             </TouchableOpacity>
-                        )}
-                    </TouchableOpacity>
+                        ))}
+                    </ScrollView>
 
-                    {showTemplates && (
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            style={{ marginHorizontal: -20 }}
-                            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 4 }}
+                    {/* Input Area */}
+                    {renderInputArea()}
+
+                    {/* Template Carousel (Format) */}
+                    <View style={styles.section}>
+                        <TouchableOpacity
+                            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showTemplates ? 10 : 0 }}
+                            onPress={() => setShowTemplates(!showTemplates)}
                         >
-                            <View style={{ flexDirection: 'row', gap: 12 }}>
-                                {FORMATS.slice(0, 5).map((item) => (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={styles.sectionTitle}>Chose Template</Text>
+                                <Ionicons name={showTemplates ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
+                            </View>
+                            {showTemplates && (
+                                <TouchableOpacity onPress={() => setShowTemplatesModal(true)}>
+                                    <Text style={{ color: colors.primary, fontWeight: '600' }}>See All</Text>
+                                </TouchableOpacity>
+                            )}
+                        </TouchableOpacity>
+
+                        {showTemplates && (
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                style={{ marginHorizontal: -20 }}
+                                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 4 }}
+                            >
+                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                    {FORMATS.slice(0, 5).map((item) => (
+                                        <TouchableOpacity
+                                            key={item.id}
+                                            style={[
+                                                styles.templateCard,
+                                                format === item.id && styles.templateCardActive
+                                            ]}
+                                            onPress={() => setFormat(item.id)}
+                                            activeOpacity={0.9}
+                                        >
+                                            <LinearGradient
+                                                colors={format === item.id ? colors.gradientPrimary : [colors.surface, colors.surface]}
+                                                style={styles.templateIconContainer}
+                                            >
+                                                <Ionicons
+                                                    name={item.icon}
+                                                    size={24}
+                                                    color={format === item.id ? '#fff' : colors.primary}
+                                                />
+                                            </LinearGradient>
+                                            <Text style={[styles.templateTitle, format === item.id && styles.templateTitleActive]}>
+                                                {item.label}
+                                            </Text>
+                                            <Text style={[styles.templateDesc, format === item.id && styles.templateDescActive]} numberOfLines={2}>
+                                                {item.desc}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                    {/* More Button */}
                                     <TouchableOpacity
-                                        key={item.id}
-                                        style={[
-                                            styles.templateCard,
-                                            format === item.id && styles.templateCardActive
-                                        ]}
-                                        onPress={() => setFormat(item.id)}
+                                        style={[styles.templateCard, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surfaceLight }]}
+                                        onPress={() => setShowTemplatesModal(true)}
                                         activeOpacity={0.9}
                                     >
-                                        <LinearGradient
-                                            colors={format === item.id ? colors.gradientPrimary : [colors.surface, colors.surface]}
-                                            style={styles.templateIconContainer}
-                                        >
-                                            <Ionicons
-                                                name={item.icon}
-                                                size={24}
-                                                color={format === item.id ? '#fff' : colors.primary}
-                                            />
-                                        </LinearGradient>
-                                        <Text style={[styles.templateTitle, format === item.id && styles.templateTitleActive]}>
-                                            {item.label}
-                                        </Text>
-                                        <Text style={[styles.templateDesc, format === item.id && styles.templateDescActive]} numberOfLines={2}>
-                                            {item.desc}
-                                        </Text>
+                                        <View style={{
+                                            width: 44, height: 44, borderRadius: 22, backgroundColor: colors.background,
+                                            justifyContent: 'center', alignItems: 'center', marginBottom: 8
+                                        }}>
+                                            <Ionicons name="apps" size={24} color={colors.primary} />
+                                        </View>
+                                        <Text style={[styles.templateTitle, { color: colors.primary }]}>More...</Text>
                                     </TouchableOpacity>
-                                ))}
-                                {/* More Button */}
-                                <TouchableOpacity
-                                    style={[styles.templateCard, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surfaceLight }]}
-                                    onPress={() => setShowTemplatesModal(true)}
-                                    activeOpacity={0.9}
-                                >
-                                    <View style={{
-                                        width: 44, height: 44, borderRadius: 22, backgroundColor: colors.background,
-                                        justifyContent: 'center', alignItems: 'center', marginBottom: 8
-                                    }}>
-                                        <Ionicons name="apps" size={24} color={colors.primary} />
-                                    </View>
-                                    <Text style={[styles.templateTitle, { color: colors.primary }]}>More...</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </ScrollView>
-                    )}
-                </View>
-
-                {/* Templates Selection Modal */}
-                <Modal
-                    visible={showTemplatesModal}
-                    transparent={true}
-                    animationType="slide"
-                    onRequestClose={() => setShowTemplatesModal(false)}
-                >
-                    <TouchableOpacity
-                        style={styles.modalOverlay}
-                        activeOpacity={1}
-                        onPress={() => setShowTemplatesModal(false)}
-                    >
-                        <View style={[styles.modalContent, { height: '80%' }]}>
-                            <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>Select Template</Text>
-                                <TouchableOpacity onPress={() => setShowTemplatesModal(false)}>
-                                    <Ionicons name="close" size={24} color={colors.text} />
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* Search Bar */}
-                            <View style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                backgroundColor: colors.surface + '80',
-                                borderRadius: 12,
-                                paddingHorizontal: 12,
-                                marginHorizontal: 20,
-                                marginBottom: 16,
-                                borderWidth: 1,
-                                borderColor: colors.border
-                            }}>
-                                <Ionicons name="search" size={20} color={colors.textSecondary} />
-                                <TextInput
-                                    style={{
-                                        flex: 1,
-                                        height: 44,
-                                        marginLeft: 8,
-                                        fontSize: 16,
-                                        color: colors.text
-                                    }}
-                                    placeholder="Search templates..."
-                                    placeholderTextColor={colors.textMuted}
-                                    value={templateSearch}
-                                    onChangeText={setTemplateSearch}
-                                    autoCorrect={false}
-                                />
-                                {templateSearch.length > 0 && (
-                                    <TouchableOpacity onPress={() => setTemplateSearch('')}>
-                                        <Ionicons name="close-circle" size={18} color={colors.textMuted} />
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-
-                            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
-                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-                                    {FORMATS
-                                        .filter(item =>
-                                            item.label.toLowerCase().includes(templateSearch.toLowerCase()) ||
-                                            item.desc.toLowerCase().includes(templateSearch.toLowerCase())
-                                        )
-                                        .map((item) => (
-                                            <TouchableOpacity
-                                                key={item.id}
-                                                style={[
-                                                    styles.templateCard,
-                                                    { width: '48%', marginBottom: 16, marginRight: 0 },
-                                                    format === item.id && styles.templateCardActive
-                                                ]}
-                                                onPress={() => {
-                                                    setFormat(item.id);
-                                                    setShowTemplatesModal(false);
-                                                    setTemplateSearch('');
-                                                }}
-                                                activeOpacity={0.9}
-                                            >
-                                                <LinearGradient
-                                                    colors={format === item.id ? colors.gradientPrimary : [colors.surface, colors.surface]}
-                                                    style={styles.templateIconContainer}
-                                                >
-                                                    <Ionicons
-                                                        name={item.icon}
-                                                        size={24}
-                                                        color={format === item.id ? '#fff' : colors.primary}
-                                                    />
-                                                </LinearGradient>
-                                                <Text style={[styles.templateTitle, format === item.id && styles.templateTitleActive]}>
-                                                    {item.label}
-                                                </Text>
-                                                <Text style={[styles.templateDesc, format === item.id && styles.templateDescActive]} numberOfLines={2}>
-                                                    {item.desc}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
                                 </View>
                             </ScrollView>
-                        </View>
-                    </TouchableOpacity>
-                </Modal>
+                        )}
+                    </View>
 
-                {/* Event Selection Modal */}
-                <Modal
-                    visible={showEventModal}
-                    transparent={true}
-                    animationType="slide"
-                    onRequestClose={() => setShowEventModal(false)}
-                >
-                    <TouchableOpacity
-                        style={styles.modalOverlay}
-                        activeOpacity={1}
-                        onPress={() => setShowEventModal(false)}
+                    {/* Templates Selection Modal */}
+                    <Modal
+                        visible={showTemplatesModal}
+                        transparent={true}
+                        animationType="slide"
+                        onRequestClose={() => setShowTemplatesModal(false)}
                     >
-                        <View style={[styles.modalContent, { maxHeight: '70%' }]}>
+                        <TouchableOpacity
+                            style={styles.modalOverlay}
+                            activeOpacity={1}
+                            onPress={() => setShowTemplatesModal(false)}
+                        >
+                            <View style={[styles.modalContent, { height: '80%' }]}>
+                                <View style={styles.modalHeader}>
+                                    <Text style={styles.modalTitle}>Select Template</Text>
+                                    <TouchableOpacity onPress={() => setShowTemplatesModal(false)}>
+                                        <Ionicons name="close" size={24} color={colors.text} />
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* Search Bar */}
+                                <View style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    backgroundColor: colors.surface + '80',
+                                    borderRadius: 12,
+                                    paddingHorizontal: 12,
+                                    marginHorizontal: 20,
+                                    marginBottom: 16,
+                                    borderWidth: 1,
+                                    borderColor: colors.border
+                                }}>
+                                    <Ionicons name="search" size={20} color={colors.textSecondary} />
+                                    <TextInput
+                                        style={{
+                                            flex: 1,
+                                            height: 44,
+                                            marginLeft: 8,
+                                            fontSize: 16,
+                                            color: colors.text
+                                        }}
+                                        placeholder="Search templates..."
+                                        placeholderTextColor={colors.textMuted}
+                                        value={templateSearch}
+                                        onChangeText={setTemplateSearch}
+                                        autoCorrect={false}
+                                    />
+                                    {templateSearch.length > 0 && (
+                                        <TouchableOpacity onPress={() => setTemplateSearch('')}>
+                                            <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+
+                                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                                        {FORMATS
+                                            .filter(item =>
+                                                item.label.toLowerCase().includes(templateSearch.toLowerCase()) ||
+                                                item.desc.toLowerCase().includes(templateSearch.toLowerCase())
+                                            )
+                                            .map((item) => (
+                                                <TouchableOpacity
+                                                    key={item.id}
+                                                    style={[
+                                                        styles.templateCard,
+                                                        { width: '48%', marginBottom: 16, marginRight: 0 },
+                                                        format === item.id && styles.templateCardActive
+                                                    ]}
+                                                    onPress={() => {
+                                                        setFormat(item.id);
+                                                        setShowTemplatesModal(false);
+                                                        setTemplateSearch('');
+                                                    }}
+                                                    activeOpacity={0.9}
+                                                >
+                                                    <LinearGradient
+                                                        colors={format === item.id ? colors.gradientPrimary : [colors.surface, colors.surface]}
+                                                        style={styles.templateIconContainer}
+                                                    >
+                                                        <Ionicons
+                                                            name={item.icon}
+                                                            size={24}
+                                                            color={format === item.id ? '#fff' : colors.primary}
+                                                        />
+                                                    </LinearGradient>
+                                                    <Text style={[styles.templateTitle, format === item.id && styles.templateTitleActive]}>
+                                                        {item.label}
+                                                    </Text>
+                                                    <Text style={[styles.templateDesc, format === item.id && styles.templateDescActive]} numberOfLines={2}>
+                                                        {item.desc}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                    </View>
+                                </ScrollView>
+                            </View>
+                        </TouchableOpacity>
+                    </Modal>
+
+                    {/* Event Selection Modal */}
+                    <Modal
+                        visible={showEventModal}
+                        transparent={true}
+                        animationType="slide"
+                        onRequestClose={() => setShowEventModal(false)}
+                    >
+                        <TouchableOpacity
+                            style={styles.modalOverlay}
+                            activeOpacity={1}
+                            onPress={() => setShowEventModal(false)}
+                        >
+                            <View style={[styles.modalContent, { maxHeight: '70%' }]}>
+                                <View style={styles.modalHeader}>
+                                    <Text style={styles.modalTitle}>Select Meeting</Text>
+                                    <TouchableOpacity onPress={() => setShowEventModal(false)}>
+                                        <Ionicons name="close" size={24} color={colors.text} />
+                                    </TouchableOpacity>
+                                </View>
+                                <ScrollView contentContainerStyle={{ padding: 20 }}>
+                                    {events?.map((event) => (
+                                        <TouchableOpacity
+                                            key={event.id}
+                                            style={{
+                                                padding: 16,
+                                                borderBottomWidth: 1,
+                                                borderBottomColor: colors.border,
+                                                backgroundColor: colors.surface,
+                                                marginBottom: 8,
+                                                borderRadius: 12
+                                            }}
+                                            onPress={() => handleEventSelect(event)}
+                                        >
+                                            <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 4 }}>{event.title}</Text>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                                <Ionicons name="time-outline" size={14} color={colors.primary} />
+                                                <Text style={{ color: colors.textMuted, fontSize: 14 }}>
+                                                    {new Date(event.startDate).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                </Text>
+                                            </View>
+                                            {event.location && (
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                    <Ionicons name="location-outline" size={14} color={colors.textMuted} />
+                                                    <Text style={{ color: colors.textMuted, fontSize: 13 }} numberOfLines={1}>{event.location}</Text>
+                                                </View>
+                                            )}
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        </TouchableOpacity>
+                    </Modal>
+
+                    {/* Visuals Modal */}
+                    <Modal
+                        visible={showVisualsModal}
+                        animationType="slide"
+                        onRequestClose={() => setShowVisualsModal(false)}
+                    >
+                        <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: 50 }}>
                             <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>Select Meeting</Text>
-                                <TouchableOpacity onPress={() => setShowEventModal(false)}>
+                                <Text style={styles.modalTitle}>Visual Summary</Text>
+                                <TouchableOpacity onPress={() => setShowVisualsModal(false)}>
                                     <Ionicons name="close" size={24} color={colors.text} />
                                 </TouchableOpacity>
                             </View>
-                            <ScrollView contentContainerStyle={{ padding: 20 }}>
-                                {events?.map((event) => (
-                                    <TouchableOpacity
-                                        key={event.id}
-                                        style={{
-                                            padding: 16,
-                                            borderBottomWidth: 1,
-                                            borderBottomColor: colors.border,
-                                            backgroundColor: colors.surface,
-                                            marginBottom: 8,
-                                            borderRadius: 12
-                                        }}
-                                        onPress={() => handleEventSelect(event)}
-                                    >
-                                        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 4 }}>{event.title}</Text>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                                            <Ionicons name="time-outline" size={14} color={colors.primary} />
-                                            <Text style={{ color: colors.textMuted, fontSize: 14 }}>
-                                                {new Date(event.startDate).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}
-                                            </Text>
-                                        </View>
-                                        {event.location && (
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                <Ionicons name="location-outline" size={14} color={colors.textMuted} />
-                                                <Text style={{ color: colors.textMuted, fontSize: 13 }} numberOfLines={1}>{event.location}</Text>
-                                            </View>
-                                        )}
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                        </View>
-                    </TouchableOpacity>
-                </Modal>
-
-                {/* Visuals Modal */}
-                <Modal
-                    visible={showVisualsModal}
-                    animationType="slide"
-                    onRequestClose={() => setShowVisualsModal(false)}
-                >
-                    <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: 50 }}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Visual Summary</Text>
-                            <TouchableOpacity onPress={() => setShowVisualsModal(false)}>
-                                <Ionicons name="close" size={24} color={colors.text} />
-                            </TouchableOpacity>
-                        </View>
-                        <WebView
-                            originWhitelist={['*']}
-                            source={{
-                                html: `
+                            <WebView
+                                originWhitelist={['*']}
+                                source={{
+                                    html: `
                             <!DOCTYPE html>
                             <html>
                             <head>
@@ -1285,260 +1313,354 @@ export default function NotesScreen() {
                             </body>
                             </html>
                         `}}
-                            style={{ flex: 1, backgroundColor: 'transparent' }}
-                        />
-                    </View>
-                </Modal>
-
-                {/* Detail Level (Note Length) - Segmented Control */}
-                <View style={styles.section}>
-                    <TouchableOpacity
-                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showLength ? 10 : 0 }}
-                        onPress={() => setShowLength(!showLength)}
-                    >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={styles.sectionTitle}>Detail Level</Text>
-                            <Ionicons name={showLength ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
+                                style={{ flex: 1, backgroundColor: 'transparent' }}
+                            />
                         </View>
-                        {!showLength && (
-                            <Text style={{ fontSize: 13, color: colors.primary }}>{NOTE_LENGTHS.find(l => l.id === noteLength)?.label}</Text>
-                        )}
-                    </TouchableOpacity>
+                    </Modal>
 
-                    {showLength && (
-                        <View style={styles.segmentedControl}>
-                            {NOTE_LENGTHS.map((length) => (
-                                <TouchableOpacity
-                                    key={length.id}
-                                    style={[styles.segmentBtn, noteLength === length.id && styles.segmentBtnActive]}
-                                    onPress={() => setNoteLength(length.id)}
-                                >
-                                    <Text style={[styles.segmentText, noteLength === length.id && styles.segmentTextActive]}>
-                                        {length.label}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    )}
-                </View>
-
-                {/* Advanced Settings (Tone & Language) */}
-                <View style={styles.section}>
-                    <TouchableOpacity
-                        style={styles.advancedHeader}
-                        onPress={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                    {/* Language Modal */}
+                    <Modal
+                        visible={showLanguageModal}
+                        transparent={true}
+                        animationType="slide"
+                        onRequestClose={() => setShowLanguageModal(false)}
                     >
-                        <Text style={styles.sectionTitle}>Advanced Settings</Text>
-                        <Ionicons
-                            name={showAdvancedSettings ? 'chevron-up' : 'chevron-down'}
-                            size={20}
-                            color={colors.textMuted}
-                        />
-                    </TouchableOpacity>
-
-                    {showAdvancedSettings && (
-                        <View style={styles.advancedContent}>
-                            {/* Tone */}
-                            <Text style={styles.subLabel}>Tone</Text>
-                            <View style={styles.wrapRow}>
-                                {TONES.map((item) => (
-                                    <TouchableOpacity
-                                        key={item.id}
-                                        style={[styles.optionBtn, tone === item.id && styles.optionBtnActive]}
-                                        onPress={() => setTone(item.id)}
-                                    >
-                                        <Text style={[styles.optionText, tone === item.id && styles.optionTextActive]}>
-                                            {item.label}
-                                        </Text>
+                        <TouchableOpacity
+                            style={styles.modalOverlay}
+                            activeOpacity={1}
+                            onPress={() => setShowLanguageModal(false)}
+                        >
+                            <View style={[styles.modalContent, { maxHeight: '70%' }]}>
+                                <View style={styles.modalHeader}>
+                                    <Text style={styles.modalTitle}>Select Language</Text>
+                                    <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
+                                        <Ionicons name="close" size={24} color={colors.text} />
                                     </TouchableOpacity>
-                                ))}
-                            </View>
-
-                            {/* Language */}
-                            <Text style={[styles.subLabel, { marginTop: 16 }]}>Language</Text>
-                            <View style={styles.wrapRow}>
-                                {LANGUAGES.map((item) => (
-                                    <TouchableOpacity
-                                        key={item.id}
-                                        style={[styles.optionBtn, language === item.id && styles.optionBtnActive]}
-                                        onPress={() => setLanguage(item.id)}
-                                    >
-                                        <Text style={[styles.optionText, language === item.id && styles.optionTextActive]}>
-                                            {item.label}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
-                    )}
-                </View>
-
-                {/* Folder Selector */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Save to Folder</Text>
-                    <View style={styles.wrapRow}>
-                        {folders.map((folder) => (
-                            <TouchableOpacity
-                                key={folder.id}
-                                style={[styles.folderBtn, selectedFolder === folder.id && styles.folderBtnActive]}
-                                onPress={() => setSelectedFolder(folder.id)}
-                            >
-                                <Ionicons
-                                    name={folder.icon}
-                                    size={16}
-                                    color={selectedFolder === folder.id ? '#fff' : folder.color}
-                                />
-                                <Text style={[styles.folderText, selectedFolder === folder.id && styles.folderTextActive]}>
-                                    {folder.name}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
-
-                {/* Generate Button */}
-                <TouchableOpacity
-                    style={styles.generateBtn}
-                    onPress={handleGenerate}
-                    disabled={isLoading}
-                    activeOpacity={0.8}
-                >
-                    <LinearGradient
-                        colors={colors.gradientPrimary}
-                        style={styles.generateBtnInner}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                    >
-                        {isLoading ? (
-                            <>
-                                <ActivityIndicator color="#fff" size="small" />
-                                <Text style={styles.generateBtnText}>Generating...</Text>
-                            </>
-                        ) : (
-                            <>
-                                <Ionicons name="sparkles" size={20} color="#fff" />
-                                <Text style={styles.generateBtnText}>Generate Notes</Text>
-                            </>
-                        )}
-                    </LinearGradient>
-                </TouchableOpacity>
-
-                {/* Output */}
-                {
-                    generatedNotes ? (
-                        <View style={styles.outputSection}>
-                            <View style={styles.outputHeader}>
-                                <Text style={styles.outputTitle}>Generated Notes</Text>
-                            </View>
-
-                            {/* Action Buttons - Row 1 */}
-                            <View style={styles.actionRow}>
-                                <TouchableOpacity style={styles.actionBtn} onPress={regenerateNotes} disabled={isLoading}>
-                                    <Ionicons name="refresh" size={18} color={colors.primary} />
-                                    <Text style={styles.actionBtnText}>Regenerate</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.actionBtn} onPress={shareNotes}>
-                                    <Ionicons name="share-outline" size={18} color={colors.secondary} />
-                                    <Text style={[styles.actionBtnText, { color: colors.secondary }]}>Share</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.actionBtn} onPress={copyNotes}>
-                                    <Ionicons name="copy-outline" size={18} color={colors.accent} />
-                                    <Text style={[styles.actionBtnText, { color: colors.accent }]}>Copy</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* Action Buttons - Row 2 */}
-                            <View style={styles.actionRow}>
-                                <TouchableOpacity style={styles.actionBtn} onPress={handleVisualize} disabled={isVisualizing}>
-                                    {isVisualizing ? (
-                                        <ActivityIndicator size="small" color={colors.primary} />
-                                    ) : (
-                                        <Ionicons name="git-network-outline" size={18} color={colors.primary} />
-                                    )}
-                                    <Text style={[styles.actionBtnText, { color: colors.primary }]}>Visualize</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.actionBtn} onPress={exportAsText}>
-                                    <Ionicons name="document-text-outline" size={18} color={colors.secondary} />
-                                    <Text style={[styles.actionBtnText, { color: colors.secondary }]}>Export .txt</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.actionBtn} onPress={exportAsMarkdown}>
-                                    <Ionicons name="logo-markdown" size={18} color={colors.accent} />
-                                    <Text style={[styles.actionBtnText, { color: colors.accent }]}>Export .md</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.outputCard}>
-                                <Markdown style={markdownStyles}>{generatedNotes}</Markdown>
-                            </View>
-
-                            {/* Follow-up Section */}
-                            <View style={styles.followUpSection}>
-                                <Text style={styles.followUpTitle}>Ask a Follow-up Question</Text>
-
-                                {/* Suggestion Chips */}
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsScroll}>
-                                    <View style={styles.suggestionsRow}>
-                                        {[
-                                            'Explain this in simpler terms',
-                                            'Give me more details',
-                                            'Summarize the key points',
-                                            'Create action items from this',
-                                        ].map((suggestion, index) => (
+                                </View>
+                                <ScrollView contentContainerStyle={{ padding: 20 }}>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                                        {LANGUAGES.map((item) => (
                                             <TouchableOpacity
-                                                key={index}
-                                                style={styles.suggestionChip}
-                                                onPress={() => setFollowUpQuestion(suggestion)}
+                                                key={item.id}
+                                                style={[styles.optionBtn, language === item.id && styles.optionBtnActive, { width: '48%' }]}
+                                                onPress={() => {
+                                                    setLanguage(item.id);
+                                                    setShowLanguageModal(false);
+                                                }}
                                             >
-                                                <Text style={styles.suggestionText}>{suggestion}</Text>
+                                                <Text style={[styles.optionText, language === item.id && styles.optionTextActive]}>
+                                                    {item.label}
+                                                </Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
                                 </ScrollView>
+                            </View>
+                        </TouchableOpacity>
+                    </Modal>
 
-                                <View style={styles.followUpInputRow}>
-                                    <TextInput
-                                        style={styles.followUpInput}
-                                        placeholder="Or type your own question..."
-                                        placeholderTextColor={colors.textMuted}
-                                        value={followUpQuestion}
-                                        onChangeText={setFollowUpQuestion}
-                                        multiline
-                                    />
+                    {/* Detail Level (Note Length) - Segmented Control */}
+                    <View style={styles.section}>
+                        <TouchableOpacity
+                            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: showLength ? 10 : 0 }}
+                            onPress={() => setShowLength(!showLength)}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={styles.sectionTitle}>Detail Level</Text>
+                                <Ionicons name={showLength ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
+                            </View>
+                            {!showLength && (
+                                <Text style={{ fontSize: 13, color: colors.primary }}>{NOTE_LENGTHS.find(l => l.id === noteLength)?.label}</Text>
+                            )}
+                        </TouchableOpacity>
+
+                        {showLength && (
+                            <View style={styles.segmentedControl}>
+                                {NOTE_LENGTHS.map((length) => (
                                     <TouchableOpacity
-                                        style={styles.followUpBtn}
-                                        onPress={handleFollowUp}
-                                        disabled={isFollowUpLoading}
+                                        key={length.id}
+                                        style={[styles.segmentBtn, noteLength === length.id && styles.segmentBtnActive]}
+                                        onPress={() => setNoteLength(length.id)}
                                     >
-                                        <LinearGradient
-                                            colors={colors.gradientSecondary}
-                                            style={styles.followUpBtnInner}
+                                        <Text style={[styles.segmentText, noteLength === length.id && styles.segmentTextActive]}>
+                                            {length.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Advanced Settings (Tone & Language) */}
+                    <View style={styles.section}>
+                        <TouchableOpacity
+                            style={styles.advancedHeader}
+                            onPress={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                        >
+                            <Text style={styles.sectionTitle}>Advanced Settings</Text>
+                            <Ionicons
+                                name={showAdvancedSettings ? 'chevron-up' : 'chevron-down'}
+                                size={20}
+                                color={colors.textMuted}
+                            />
+                        </TouchableOpacity>
+
+                        {showAdvancedSettings && (
+                            <View style={styles.advancedContent}>
+                                {/* Tone */}
+                                <Text style={styles.subLabel}>Tone</Text>
+                                <View style={styles.wrapRow}>
+                                    {TONES.map((item) => (
+                                        <TouchableOpacity
+                                            key={item.id}
+                                            style={[styles.optionBtn, tone === item.id && styles.optionBtnActive]}
+                                            onPress={() => setTone(item.id)}
                                         >
-                                            {isFollowUpLoading ? (
-                                                <ActivityIndicator color="#fff" size="small" />
-                                            ) : (
-                                                <Ionicons name="send" size={18} color="#fff" />
-                                            )}
-                                        </LinearGradient>
+                                            <Text style={[styles.optionText, tone === item.id && styles.optionTextActive]}>
+                                                {item.label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                {/* Language */}
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 16 }}>
+                                    <Text style={[styles.subLabel, { marginBottom: 0 }]}>Language</Text>
+                                    <TouchableOpacity onPress={() => setShowLanguageModal(true)}>
+                                        <Text style={{ fontSize: 13, color: colors.primary, fontWeight: '600' }}>See All</Text>
                                     </TouchableOpacity>
                                 </View>
 
-                                {followUpResponse ? (
-                                    <View style={styles.followUpResponseCard}>
-                                        <View style={styles.followUpResponseHeader}>
-                                            <Ionicons name="chatbubble-ellipses" size={16} color={colors.secondary} />
-                                            <Text style={styles.followUpResponseTitle}>AI Response</Text>
-                                        </View>
-                                        <Markdown style={markdownStyles}>{followUpResponse}</Markdown>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16 }}>
+                                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                                        {LANGUAGES.slice(0, 5).map((item) => (
+                                            <TouchableOpacity
+                                                key={item.id}
+                                                style={[styles.optionBtn, language === item.id && styles.optionBtnActive]}
+                                                onPress={() => setLanguage(item.id)}
+                                            >
+                                                <Text style={[styles.optionText, language === item.id && styles.optionTextActive]}>
+                                                    {item.label}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
                                     </View>
-                                ) : null}
+                                </ScrollView>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Folder Selector */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Save to Folder</Text>
+                        <View style={styles.wrapRow}>
+                            {folders.map((folder) => (
+                                <TouchableOpacity
+                                    key={folder.id}
+                                    style={[styles.folderBtn, selectedFolder === folder.id && styles.folderBtnActive]}
+                                    onPress={() => setSelectedFolder(folder.id)}
+                                >
+                                    <Ionicons
+                                        name={folder.icon}
+                                        size={16}
+                                        color={selectedFolder === folder.id ? '#fff' : folder.color}
+                                    />
+                                    <Text style={[styles.folderText, selectedFolder === folder.id && styles.folderTextActive]}>
+                                        {folder.name}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
+
+                    {/* Generate Button */}
+                    <TouchableOpacity
+                        style={styles.generateBtn}
+                        onPress={handleGenerate}
+                        disabled={isLoading}
+                        activeOpacity={0.8}
+                    >
+                        <LinearGradient
+                            colors={colors.gradientPrimary}
+                            style={styles.generateBtnInner}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                        >
+                            {isLoading ? (
+                                <>
+                                    <ActivityIndicator color="#fff" size="small" />
+                                    <Text style={styles.generateBtnText}>Generating...</Text>
+                                </>
+                            ) : (
+                                <>
+                                    <Ionicons name="sparkles" size={20} color="#fff" />
+                                    <Text style={styles.generateBtnText}>Generate Notes</Text>
+                                </>
+                            )}
+                        </LinearGradient>
+                    </TouchableOpacity>
+
+                    {/* Output */}
+                    {
+                        generatedNotes ? (
+                            <View style={styles.outputSection}>
+                                <View style={styles.outputHeader}>
+                                    <Text style={styles.outputTitle}>Generated Notes</Text>
+                                </View>
+
+                                {/* Action Buttons - Row 1 */}
+                                <View style={styles.actionRow}>
+                                    <TouchableOpacity style={styles.actionBtn} onPress={regenerateNotes} disabled={isLoading}>
+                                        <Ionicons name="refresh" size={18} color={colors.primary} />
+                                        <Text style={styles.actionBtnText}>Regenerate</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.actionBtn} onPress={shareNotes}>
+                                        <Ionicons name="share-outline" size={18} color={colors.secondary} />
+                                        <Text style={[styles.actionBtnText, { color: colors.secondary }]}>Share</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.actionBtn} onPress={copyNotes}>
+                                        <Ionicons name="copy-outline" size={18} color={colors.accent} />
+                                        <Text style={[styles.actionBtnText, { color: colors.accent }]}>Copy</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* Action Buttons - Row 2 */}
+                                <View style={styles.actionRow}>
+                                    <TouchableOpacity style={styles.actionBtn} onPress={handleVisualize} disabled={isVisualizing}>
+                                        {isVisualizing ? (
+                                            <ActivityIndicator size="small" color={colors.primary} />
+                                        ) : (
+                                            <Ionicons name="git-network-outline" size={18} color={colors.primary} />
+                                        )}
+                                        <Text style={[styles.actionBtnText, { color: colors.primary }]}>Visualize</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.actionBtn} onPress={exportAsText}>
+                                        <Ionicons name="document-text-outline" size={18} color={colors.secondary} />
+                                        <Text style={[styles.actionBtnText, { color: colors.secondary }]}>Export .txt</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.actionBtn} onPress={exportAsMarkdown}>
+                                        <Ionicons name="logo-markdown" size={18} color={colors.accent} />
+                                        <Text style={[styles.actionBtnText, { color: colors.accent }]}>Export .md</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                <View style={styles.outputCard}>
+                                    <Markdown style={markdownStyles}>{generatedNotes}</Markdown>
+                                </View>
+
+                                {/* Follow-up Section */}
+                                <View style={styles.followUpSection}>
+                                    <Text style={styles.followUpTitle}>Ask a Follow-up Question</Text>
+
+                                    {/* Suggestion Chips */}
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsScroll}>
+                                        <View style={styles.suggestionsRow}>
+                                            {[
+                                                'Explain this in simpler terms',
+                                                'Give me more details',
+                                                'Summarize the key points',
+                                                'Create action items from this',
+                                            ].map((suggestion, index) => (
+                                                <TouchableOpacity
+                                                    key={index}
+                                                    style={styles.suggestionChip}
+                                                    onPress={() => setFollowUpQuestion(suggestion)}
+                                                >
+                                                    <Text style={styles.suggestionText}>{suggestion}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </ScrollView>
+
+                                    <View style={styles.followUpInputRow}>
+                                        <TextInput
+                                            style={styles.followUpInput}
+                                            placeholder="Or type your own question..."
+                                            placeholderTextColor={colors.textMuted}
+                                            value={followUpQuestion}
+                                            onChangeText={setFollowUpQuestion}
+                                            multiline
+                                        />
+                                        <TouchableOpacity
+                                            style={styles.followUpBtn}
+                                            onPress={handleFollowUp}
+                                            disabled={isFollowUpLoading}
+                                        >
+                                            <LinearGradient
+                                                colors={colors.gradientSecondary}
+                                                style={styles.followUpBtnInner}
+                                            >
+                                                {isFollowUpLoading ? (
+                                                    <ActivityIndicator color="#fff" size="small" />
+                                                ) : (
+                                                    <Ionicons name="send" size={18} color="#fff" />
+                                                )}
+                                            </LinearGradient>
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    {followUpResponse ? (
+                                        <View style={styles.followUpResponseCard}>
+                                            <View style={styles.followUpResponseHeader}>
+                                                <Ionicons name="chatbubble-ellipses" size={16} color={colors.secondary} />
+                                                <Text style={styles.followUpResponseTitle}>AI Response</Text>
+                                            </View>
+                                            <Markdown style={markdownStyles}>{followUpResponse}</Markdown>
+                                        </View>
+                                    ) : null}
+                                </View>
+                            </View>
+                        ) : null
+                    }
+
+
+                    {/* Recent History Section */}
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>Recent Notes</Text>
+                            <View style={{ flexDirection: 'row', gap: 16 }}>
+                                {notes.length > 0 && (
+                                    <TouchableOpacity onPress={() => navigation.navigate('History')}>
+                                        <Text style={[styles.clearAllText, { color: colors.primary }]}>See All</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {notes.length > 0 && (
+                                    <TouchableOpacity onPress={handleClearAllHistory}>
+                                        <Text style={styles.clearAllText}>Clear All</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         </View>
-                    ) : null
-                }
 
-                {/* Banner Ad */}
-                {areAdsEnabled && (
-                    <View style={{ alignItems: 'center', marginTop: 20 }}>
+                        {notes.length === 0 ? (
+                            <Text style={styles.emptyHistoryText}>No recent notes</Text>
+                        ) : (
+                            notes.slice(0, 5).map((note) => (
+                                <View key={note.id} style={styles.historyCard}>
+                                    <View style={styles.historyInfo}>
+                                        <Text style={styles.historyDate}>
+                                            {new Date(note.createdAt).toLocaleDateString()}
+                                        </Text>
+                                        <Text style={styles.historyPreview} numberOfLines={2}>
+                                            {note.content}
+                                        </Text>
+                                    </View>
+                                    <TouchableOpacity
+                                        style={styles.deleteBtn}
+                                        onPress={() => handleDeleteNote(note.id)}
+                                    >
+                                        <Ionicons name="trash-outline" size={20} color={colors.error} />
+                                    </TouchableOpacity>
+                                </View>
+                            ))
+                        )}
+                    </View>
+
+                </ScrollView >
+
+                {/* Bottom Banner Ad - Fixed at bottom, hidden for Pro subscribers */}
+                {areAdsEnabled && !getCreditData().hasProSubscription && (
+                    <View style={{ alignItems: 'center', paddingVertical: 8, backgroundColor: colors.background, borderTopWidth: 1, borderTopColor: colors.glassBorder }}>
                         <BannerAd
                             unitId={adUnitIDs.banner}
                             size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
@@ -1548,50 +1670,8 @@ export default function NotesScreen() {
                         />
                     </View>
                 )}
-                {/* Recent History Section */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Recent Notes</Text>
-                        <View style={{ flexDirection: 'row', gap: 16 }}>
-                            {notes.length > 0 && (
-                                <TouchableOpacity onPress={() => navigation.navigate('History')}>
-                                    <Text style={[styles.clearAllText, { color: colors.primary }]}>See All</Text>
-                                </TouchableOpacity>
-                            )}
-                            {notes.length > 0 && (
-                                <TouchableOpacity onPress={handleClearAllHistory}>
-                                    <Text style={styles.clearAllText}>Clear All</Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
-                    </View>
-
-                    {notes.length === 0 ? (
-                        <Text style={styles.emptyHistoryText}>No recent notes</Text>
-                    ) : (
-                        notes.slice(0, 5).map((note) => (
-                            <View key={note.id} style={styles.historyCard}>
-                                <View style={styles.historyInfo}>
-                                    <Text style={styles.historyDate}>
-                                        {new Date(note.createdAt).toLocaleDateString()}
-                                    </Text>
-                                    <Text style={styles.historyPreview} numberOfLines={2}>
-                                        {note.content}
-                                    </Text>
-                                </View>
-                                <TouchableOpacity
-                                    style={styles.deleteBtn}
-                                    onPress={() => handleDeleteNote(note.id)}
-                                >
-                                    <Ionicons name="trash-outline" size={20} color={colors.error} />
-                                </TouchableOpacity>
-                            </View>
-                        ))
-                    )}
-                </View>
-
-            </ScrollView >
-        </View >
+            </View >
+        </KeyboardAvoidingView>
     );
 }
 
