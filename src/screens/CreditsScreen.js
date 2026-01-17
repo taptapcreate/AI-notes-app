@@ -556,13 +556,15 @@ export default function CreditsScreen({ navigation }) {
                         <Ionicons name="flash" size={16} color={activeTab === 'credits' ? '#fff' : colors.textMuted} />
                         <Text style={[styles.toggleTabText, activeTab === 'credits' && styles.toggleTabTextActive]}>Credits</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.toggleTab, activeTab === 'ads' && styles.toggleTabActive]}
-                        onPress={() => setActiveTab('ads')}
-                    >
-                        <Ionicons name="play-circle" size={16} color={activeTab === 'ads' ? '#fff' : colors.textMuted} />
-                        <Text style={[styles.toggleTabText, activeTab === 'ads' && styles.toggleTabTextActive]}>Watch Ads</Text>
-                    </TouchableOpacity>
+                    {!credits.hasProSubscription && (
+                        <TouchableOpacity
+                            style={[styles.toggleTab, activeTab === 'ads' && styles.toggleTabActive]}
+                            onPress={() => setActiveTab('ads')}
+                        >
+                            <Ionicons name="play-circle" size={16} color={activeTab === 'ads' ? '#fff' : colors.textMuted} />
+                            <Text style={[styles.toggleTabText, activeTab === 'ads' && styles.toggleTabTextActive]}>Watch Ads</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
                 {/* Subscription Plans Section - Only when subscriptions tab */}
@@ -861,7 +863,7 @@ export default function CreditsScreen({ navigation }) {
 
                 {/* Watch Ads Section - Only when ads tab */}
                 {
-                    activeTab === 'ads' && (
+                    activeTab === 'ads' && !credits.hasProSubscription && (
                         <View style={styles.section}>
                             <View style={styles.sectionHeader}>
                                 <Text style={styles.sectionTitle}>Watch Ads for Credits</Text>

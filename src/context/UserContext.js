@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CreditSyncService from '../services/CreditSyncService';
 import PurchaseService from '../services/PurchaseService';
@@ -9,6 +10,8 @@ const UserContext = createContext();
 const PURCHASED_CREDITS_CACHE_KEY = '@purchased_credits_cache';
 const FREE_CREDITS_CACHE_KEY = '@free_credits_cache';
 const SUBSCRIBER_DAILY_USAGE_KEY = '@subscriber_daily_usage';
+const IS_PRO_USER_CACHE = '@is_pro_user_legacy_v2'; // Simple boolean cache for instant load
+const WAS_PRO_USER_CACHE = '@was_pro_user_last_known'; // To track expiration
 const FREE_DAILY_LIMIT = 3;
 const SUBSCRIBER_DAILY_LIMIT = 100; // Max requests per day for subscribers
 const ONBOARDING_SHOWN_KEY = '@onboarding_shown_v1';
@@ -35,6 +38,18 @@ export const UserProvider = ({ children }) => {
 
     // Initialize on mount
     useEffect(() => {
+        // INSTANT LOAD: Load local boolean cache first to prevent "Free" flicker
+        const loadCache = async () => {
+            try {
+                const cachedPro = await AsyncStorage.getItem(IS_PRO_USER_CACHE);
+                if (cachedPro === 'true') {
+                    console.log('⚡ Loaded cached Pro status: TRUE');
+                    setHasProSubscription(true);
+                }
+            } catch (e) { console.log('Cache load error', e); }
+        };
+        loadCache();
+
         initializeCredits();
         initializeConfig();
         checkOnboardingStatus();
@@ -147,15 +162,43 @@ export const UserProvider = ({ children }) => {
             if (!customerInfo || !customerInfo.entitlements) return;
 
             const activeEntitlements = customerInfo.entitlements.active;
-            const hasProAccess = activeEntitlements['AI Notes - Write and Reply Pro'] !== undefined;
+
+            // FILTER: Only count real subscriptions, not accidental credit packs
+            const activeKeys = Object.keys(activeEntitlements).filter(key => {
+                const pid = activeEntitlements[key]?.productIdentifier || '';
+                return !pid.includes('_pack_credits');
+            });
+
+            const hasProAccess = activeKeys.length > 0;
+
+            console.log('🔍 Listener Update - Active Keys:', activeKeys);
 
             setHasProSubscription(hasProAccess);
+            AsyncStorage.setItem(IS_PRO_USER_CACHE, hasProAccess ? 'true' : 'false').catch(e => console.log(e));
+
+            // EXPIRATION CHECK: If user WAS pro and now is NOT, show alert
+            const checkExpiration = async () => {
+                try {
+                    const wasPro = await AsyncStorage.getItem(WAS_PRO_USER_CACHE);
+                    if (wasPro === 'true' && !hasProAccess) {
+                        console.log('📉 Subscription Expired: User downgraded from Pro to Free');
+                        Alert.alert(
+                            'Subscription Ended',
+                            'Your Pro subscription has expired. You are now on the Free plan with daily limits.'
+                        );
+                    }
+                    // Update cache for next time
+                    await AsyncStorage.setItem(WAS_PRO_USER_CACHE, hasProAccess ? 'true' : 'false');
+                } catch (e) { console.log('Expiration check error', e); }
+            };
+            checkExpiration();
 
             if (hasProAccess) {
-                const entitlement = activeEntitlements['AI Notes - Write and Reply Pro'];
+                // CORRECTION: Use the first available filtered key, not hardcoded string
+                const entitlement = activeEntitlements[activeKeys[0]];
                 const productId = entitlement?.productIdentifier || '';
 
-                console.log('🔍 Processing Subscription Product ID:', productId);
+                console.log('🔍 Listener - Processing Subscription Product ID:', productId);
 
                 if (productId.includes('monthly')) {
                     setSubscriptionType('monthly');
@@ -176,13 +219,68 @@ export const UserProvider = ({ children }) => {
     };
 
     // Check subscription status via AdvancedSubscriptionManager
-    const checkSubscriptionStatus = async () => {
+    const checkSubscriptionStatus = useCallback(async () => {
         try {
             // Use dynamic import to avoid circular dependency
-            const { getSubscriptionStatus } = await import('../services/AdvancedSubscriptionManager');
+            const { getSubscriptionStatus, SUBSCRIPTION_STATE } = await import('../services/AdvancedSubscriptionManager');
             const status = await getSubscriptionStatus();
 
-            setHasProSubscription(status.hasProAccess);
+            let finalHasPro = status.hasProAccess;
+            let isUnknown = status.state === SUBSCRIPTION_STATE.UNKNOWN || status.state === 'unknown';
+
+            // If status is UNKNOWN or FALSE, try the Fallback (PurchaseService)
+            // This ensures we double-check Entitlements directly if the AdvancedManager is unsure or says Free
+            if (isUnknown || !finalHasPro) {
+                try {
+                    const fallbackCheck = await PurchaseService.checkProAccess();
+                    if (fallbackCheck.success && fallbackCheck.hasProAccess) {
+                        console.log('⚠️ Status was ' + status.state + ', but PurchaseService found Entitlement. Overriding to PRO.');
+                        finalHasPro = true;
+                        isUnknown = false; // We are now certain they are Pro
+
+                        // Update status object to reflect this override
+                        status.hasProAccess = true;
+                        status.subscriptionData = { planType: 'monthly' }; // Default
+
+                        if (fallbackCheck.customerInfo) {
+                            const activeEntitlements = fallbackCheck.customerInfo.entitlements.active;
+                            const activeKeys = Object.keys(activeEntitlements).filter(key => {
+                                return !activeEntitlements[key]?.productIdentifier?.includes('_pack_credits');
+                            });
+
+                            if (activeKeys.length > 0) {
+                                const pid = activeEntitlements[activeKeys[0]]?.productIdentifier || '';
+                                if (pid.includes('weekly')) status.subscriptionData.planType = 'weekly';
+                            }
+                        }
+                    }
+                } catch (e) { console.log('Double-check failed', e); }
+            }
+
+            // CRITICAL: If status is STILL unknown after fallback, abort update
+            if (isUnknown) {
+                console.log('⚠️ Subscription status Still UNKNOWN - keeping previous state');
+                return status;
+            }
+
+            setHasProSubscription(finalHasPro);
+            AsyncStorage.setItem(IS_PRO_USER_CACHE, finalHasPro ? 'true' : 'false').catch(e => console.log(e));
+
+            // EXPIRATION CHECK: Same logic as listener
+            const checkExpiration = async () => {
+                try {
+                    const wasPro = await AsyncStorage.getItem(WAS_PRO_USER_CACHE);
+                    if (wasPro === 'true' && !finalHasPro) {
+                        console.log('📉 Subscription Expired (Manual Check): User downgraded');
+                        Alert.alert(
+                            'Subscription Ended',
+                            'Your Pro subscription has expired. You are now on the Free plan with daily limits.'
+                        );
+                    }
+                    await AsyncStorage.setItem(WAS_PRO_USER_CACHE, finalHasPro ? 'true' : 'false');
+                } catch (e) { console.log('Expiration check error', e); }
+            };
+            checkExpiration();
 
             // Get subscription type from subscription data
             if (status.hasProAccess && status.subscriptionData) {
@@ -193,41 +291,10 @@ export const UserProvider = ({ children }) => {
 
             return status;
         } catch (error) {
-            console.error('Check subscription error:', error);
-
-            // Fallback to PurchaseService if AdvancedSubscriptionManager fails
-            try {
-                const result = await PurchaseService.checkProAccess();
-                if (result.success) {
-                    setHasProSubscription(result.hasProAccess);
-
-                    if (result.hasProAccess && result.customerInfo) {
-                        const activeEntitlements = result.customerInfo.entitlements.active;
-                        const entitlement = activeEntitlements['AI Notes - Write and Reply Pro'];
-
-                        if (entitlement) {
-                            const productId = entitlement.productIdentifier || '';
-                            console.log('🔍 Fallback Check Product ID:', productId);
-
-                            if (productId.includes('weekly')) {
-                                setSubscriptionType('weekly');
-                            } else if (productId.includes('monthly')) {
-                                setSubscriptionType('monthly');
-                            } else {
-                                setSubscriptionType('monthly');
-                            }
-                        }
-                    } else {
-                        setSubscriptionType(null);
-                    }
-                }
-                return result;
-            } catch (fallbackError) {
-                console.error('Fallback check also failed:', fallbackError);
-                return { success: false };
-            }
+            console.error('Error checking subscription status:', error);
+            return null;
         }
-    };
+    }, [setHasProSubscription, setSubscriptionType]);
 
     // Sync BOTH credit balances from server
     const syncBalance = useCallback(async () => {
@@ -421,11 +488,13 @@ export const UserProvider = ({ children }) => {
             syncBalance,
             recoverAccount,
             initializeCredits,
-            initializeCredits,
+            checkSubscriptionStatus,
             appConfig,
             hasSeenOnboarding,
             isOnboardingLoading,
-            completeOnboarding
+            completeOnboarding,
+            hasProSubscription,
+            subscriptionType
         }}>
             {children}
         </UserContext.Provider>

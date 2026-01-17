@@ -25,7 +25,7 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { HistoryProvider } from './src/context/HistoryContext';
 import { FoldersProvider } from './src/context/FoldersContext';
 import { UserProvider, useUser } from './src/context/UserContext';
-import AdService, { initializeAds as initAds, showAppOpenAd, areAdsEnabled } from './src/services/AdService';
+import AdService, { initializeAds as initAds, areAdsEnabled } from './src/services/AdService';
 import NotificationService from './src/services/NotificationService';
 import AppContent from './src/components/AppContent';
 
@@ -314,29 +314,7 @@ export default function App() {
     return cleanup;
   }, []);
 
-  // App Open Ad - show when app comes back to foreground
-  React.useEffect(() => {
-    if (!areAdsEnabled) return;
 
-    let lastBackground = 0;
-
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'background') {
-        lastBackground = Date.now();
-      } else if (nextAppState === 'active') {
-        // Only show app open ad if user was away for more than 30 seconds
-        const timeSinceBackground = Date.now() - lastBackground;
-        if (lastBackground > 0 && timeSinceBackground > 30000) {
-          console.log('🚀 Showing app open ad after returning from background');
-          showAppOpenAd();
-        }
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
 
   // Show loading while fonts load
   if (!fontsLoaded) {

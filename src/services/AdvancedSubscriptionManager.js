@@ -548,7 +548,14 @@ class AdvancedSubscriptionManager {
 
     _extractSubscriptionData(customerInfo) {
         const entitlements = customerInfo?.entitlements?.active || {};
-        const proEntitlement = entitlements[ENTITLEMENT_ID];
+
+        // RELAXED CHECK: Use first available active entitlement (Filtered)
+        const activeKeys = Object.keys(entitlements).filter(key => {
+            const pid = entitlements[key]?.productIdentifier || '';
+            return !pid.includes('_pack_credits');
+        });
+
+        const proEntitlement = activeKeys.length > 0 ? entitlements[activeKeys[0]] : null;
 
         if (!proEntitlement) {
             return {

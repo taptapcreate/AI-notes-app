@@ -1659,7 +1659,7 @@ export default function NotesScreen() {
                 </ScrollView >
 
                 {/* Bottom Banner Ad - Fixed at bottom, hidden for Pro subscribers */}
-                {areAdsEnabled && !getCreditData().hasProSubscription && (
+                {areAdsEnabled && !hasProSubscription && (
                     <View style={{ alignItems: 'center', paddingVertical: 8, backgroundColor: colors.background, borderTopWidth: 1, borderTopColor: colors.glassBorder }}>
                         <BannerAd
                             unitId={adUnitIDs.banner}

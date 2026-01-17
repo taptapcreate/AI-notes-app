@@ -10,11 +10,14 @@ import {
     ActivityIndicator,
     SafeAreaView
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useUser } from '../context/UserContext';
 import PurchaseService, { PRODUCT_IDS } from '../services/PurchaseService';
+
+const AUTO_RESTORE_SHOWN_KEY = '@auto_restore_popup_shown';
 
 // Exact match from CreditsScreen
 const SUBSCRIPTION_PLANS = [
@@ -56,7 +59,7 @@ const SUBSCRIPTION_PLANS = [
 
 export default function OnboardingPaywallScreen({ navigation }) {
     const { colors, isDark } = useTheme();
-    const { completeOnboarding, syncBalance } = useUser();
+    const { completeOnboarding, syncBalance, recoverAccount } = useUser();
     const [isLoading, setIsLoading] = useState(false);
     const [selectedPlanId, setSelectedPlanId] = useState(PRODUCT_IDS.MONTHLY_SUBSCRIPTION);
     const [rcPackages, setRcPackages] = useState({});
@@ -69,7 +72,7 @@ export default function OnboardingPaywallScreen({ navigation }) {
                 offeringsResult.offerings.availablePackages.forEach(pkg => {
                     packages[pkg.product.identifier] = {
                         price: pkg.product.priceString,
-                        package: pkg, // Cache full package object
+                        package: pkg,
                     };
                 });
                 setRcPackages(packages);
@@ -77,6 +80,74 @@ export default function OnboardingPaywallScreen({ navigation }) {
         };
         loadPrices();
     }, []);
+
+    // OPTIMIZATION: Check if already Pro (e.g. from previous install or restore)
+    // Only shows ONCE per install (tracked via AsyncStorage)
+    useEffect(() => {
+        const timer = setTimeout(async () => {
+            try {
+                // Check if we've already shown this popup
+                const alreadyShown = await AsyncStorage.getItem(AUTO_RESTORE_SHOWN_KEY);
+                if (alreadyShown === 'true') {
+                    console.log('⏭️ Auto-restore popup already shown this install');
+                    return;
+                }
+
+                const proCheck = await PurchaseService.checkProAccess();
+                if (proCheck.hasProAccess) {
+                    console.log('✅ Auto-Restore: User has active subscription');
+                    // Mark as shown BEFORE displaying popup
+                    await AsyncStorage.setItem(AUTO_RESTORE_SHOWN_KEY, 'true');
+
+                    Alert.alert(
+                        'Welcome Back!',
+                        'We detected an active subscription. Use this account?',
+                        [
+                            { text: 'No, Use Code', style: 'cancel', onPress: () => { /* Stay on screen */ } },
+                            { text: 'Yes, Restore', onPress: () => finishOnboarding() }
+                        ]
+                    );
+                } else {
+                    // No subscription found, mark as shown so we don't check again
+                    await AsyncStorage.setItem(AUTO_RESTORE_SHOWN_KEY, 'true');
+                }
+            } catch (e) {
+                console.log('Auto-check failed', e);
+            }
+        }, 1000); // 1 second delay to let UI render first
+
+        return () => clearTimeout(timer);
+    }, []);
+
+    const handleRedeem = () => {
+        if (Platform.OS === 'ios') {
+            Alert.prompt(
+                'Enter Recovery Code',
+                'Enter your unique recovery code to restore purchases/credits.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Redeem',
+                        onPress: async (code) => {
+                            if (!code) return;
+                            setIsLoading(true);
+                            const result = await recoverAccount(code);
+                            setIsLoading(false);
+                            if (result.success) {
+                                Alert.alert('Success', 'Account recovered!', [{ text: 'OK', onPress: finishOnboarding }]);
+                            } else {
+                                Alert.alert('Error', 'Invalid code.');
+                            }
+                        }
+                    }
+                ],
+                'plain-text'
+            );
+        } else {
+            // Simple Android Fallback
+            Alert.alert('Redeem Code', 'Please go to Settings > Credits to redeem codes on Android.');
+        }
+    };
 
     const getPrice = (productId, fallbackPrice) => {
         if (rcPackages[productId]) {
@@ -92,7 +163,6 @@ export default function OnboardingPaywallScreen({ navigation }) {
         try {
             let result;
 
-            // OPTIMIZATION: Use cached package for instant popup
             if (rcPackages[selectedPlanId]?.package) {
                 console.log('⚡ Fast purchase using cached package');
                 result = await PurchaseService.purchasePackage(rcPackages[selectedPlanId].package);
@@ -102,7 +172,6 @@ export default function OnboardingPaywallScreen({ navigation }) {
             }
 
             if (result.success) {
-                // FORCE REFRESH: Update Pro state immediately
                 await PurchaseService.checkProAccess();
                 await syncBalance();
                 Alert.alert(
@@ -125,25 +194,17 @@ export default function OnboardingPaywallScreen({ navigation }) {
         }
     };
 
-    /**
-     * Non-blocking Restore:
-     * Shows spinner for max 2 seconds, then dismisses it.
-     * Result appears via Alert regardless of screen state.
-     */
     const handleRestore = async () => {
         if (isLoading) return;
 
         setIsLoading(true);
 
-        // 1. Trigger the restore (async)
         const restorePromise = PurchaseService.restorePurchases();
-
-        // 2. Set complete flag to handle UI unblocking
         let isDone = false;
 
         restorePromise.then(async (result) => {
             isDone = true;
-            setIsLoading(false); // Ensure spinner gone
+            setIsLoading(false);
 
             if (result.success && (result.activeSubscriptions?.length > 0 || result.totalCreditsRestored > 0)) {
                 await syncBalance();
@@ -167,11 +228,9 @@ export default function OnboardingPaywallScreen({ navigation }) {
             Alert.alert('Error', 'Restore failed. Please check your connection.');
         });
 
-        // 3. Force UI unblock after 2 seconds (Fire & Forget UX)
         setTimeout(() => {
             if (!isDone) {
-                setIsLoading(false); // Unblock UI
-                // Optional: Toast "Checking in background..."
+                setIsLoading(false);
             }
         }, 2000);
     };
@@ -485,6 +544,12 @@ export default function OnboardingPaywallScreen({ navigation }) {
                     <Text style={styles.disclaimer}>
                         Recurring billing, cancel anytime. By continuing you agree to our Terms of Service.
                     </Text>
+
+                    <TouchableOpacity style={{ marginTop: 20, padding: 10, alignSelf: 'center' }} onPress={handleRedeem}>
+                        <Text style={{ color: colors.primary, textAlign: 'center', fontSize: 13, fontWeight: '600' }}>
+                            Have a Recovery Code?
+                        </Text>
+                    </TouchableOpacity>
 
                 </ScrollView>
             </SafeAreaView>

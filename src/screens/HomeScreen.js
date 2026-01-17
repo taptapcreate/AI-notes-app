@@ -297,30 +297,28 @@ export default function HomeScreen({ navigation }) {
                                     <View>
                                         <View style={styles.creditDisplayRow}>
                                             <Ionicons name="infinite" size={20} color="#fff" style={{ opacity: 0.9 }} />
-                                            <Text style={[styles.creditValueMain, { fontSize: 20 }]}>Unlimited Access</Text>
+                                            <Text style={[styles.creditValueMain, { fontSize: 16 }]}>
+                                                {credits.subscriptionType === 'monthly' ? 'Monthly' : credits.subscriptionType === 'weekly' ? 'Weekly' : 'Pro'} subscription active : unlimited access
+                                            </Text>
                                         </View>
-                                        {(credits.purchasedCredits > 0) && (
-                                            <View style={[styles.creditDisplayRow, { marginTop: 4 }]}>
-                                                <Ionicons name="wallet" size={16} color="#fff" style={{ opacity: 0.9 }} />
-                                                <Text style={styles.creditLabelText}>Purchased:</Text>
-                                                <Text style={styles.creditValueSub}>{credits.purchasedCredits}</Text>
-                                            </View>
-                                        )}
+                                        <View style={[styles.creditDisplayRow, { marginTop: 4 }]}>
+                                            <Ionicons name="wallet" size={16} color="#fff" style={{ opacity: 0.9 }} />
+                                            <Text style={styles.creditLabelText}>Purchased credits :</Text>
+                                            <Text style={styles.creditValueSub}>{credits.purchasedCredits || 0}</Text>
+                                        </View>
                                     </View>
                                 ) : (
                                     <>
                                         <View style={styles.creditDisplayRow}>
                                             <Ionicons name="flash" size={16} color="#fff" style={{ opacity: 0.9 }} />
-                                            <Text style={styles.creditLabelText}>Daily Free:</Text>
+                                            <Text style={styles.creditLabelText}>Daily Free :</Text>
                                             <Text style={styles.creditValueMain}>{credits.remainingFree}</Text>
                                         </View>
-                                        {(credits.purchasedCredits > 0) && (
-                                            <View style={[styles.creditDisplayRow, { marginTop: 4 }]}>
-                                                <Ionicons name="wallet" size={16} color="#fff" style={{ opacity: 0.9 }} />
-                                                <Text style={styles.creditLabelText}>Purchased:</Text>
-                                                <Text style={styles.creditValueSub}>{credits.purchasedCredits}</Text>
-                                            </View>
-                                        )}
+                                        <View style={[styles.creditDisplayRow, { marginTop: 4 }]}>
+                                            <Ionicons name="wallet" size={16} color="#fff" style={{ opacity: 0.9 }} />
+                                            <Text style={styles.creditLabelText}>Purchased credits :</Text>
+                                            <Text style={styles.creditValueSub}>{credits.purchasedCredits || 0}</Text>
+                                        </View>
                                     </>
                                 )}
                             </View>
